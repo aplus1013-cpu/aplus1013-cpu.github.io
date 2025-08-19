@@ -1,497 +1,382 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>사원별 리포트 배포 도구</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #F8F7F4;
-            color: #333;
-        }
-        .chart-container {
-            position: relative;
-            width: 100%;
-            height: 400px;
-        }
-        /* Custom modal styles */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-        }
-        .modal-content {
-            background-color: #fff;
-            margin: 15% auto;
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 400px;
-            text-align: center;
-        }
-        .close-button {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-        }
-        .close-button:hover,
-        .close-button:focus {
-            color: black;
-            text-decoration: none;
-            cursor: pointer;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 16px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .mobile-preview-container {
-            max-width: 375px; /* Typical mobile width */
-            margin: 0 auto;
-            border: 2px solid #ddd;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            overflow-x: auto; /* Allow horizontal scrolling for wide images */
-        }
-    </style>
-</head>
-<body class="antialiased p-6">
-    <div class="container mx-auto max-w-4xl bg-white p-8 rounded-xl shadow-lg my-12">
-        <header class="text-center mb-10">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">사원 리포트 배포 도구</h1>
-            <p class="text-lg text-gray-600">사원별 맞춤형 리포트를 이미지로 캡처하고 복사할 수 있습니다.</p>
-        </header>
+import React, { useState, useEffect, useCallback } from 'react';
+import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Scatter } from 'recharts';
+import { ChevronDown, ChevronUp, RefreshCcw } from 'lucide-react';
 
-        <section class="mb-8">
-            <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4">
-                <input type="text" id="employeeNameInput" placeholder="사원명 (예: 박연실)" class="w-full md:w-1/2 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="previewButton" class="w-full md:w-auto px-6 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition duration-300">화면 미리보기</button>
-                <button id="captureAndCopyButton" class="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition duration-300">이미지 복사</button>
-            </div>
-        </section>
+// Recharts 및 Lucide React 아이콘은 이미 사용 가능하다고 가정합니다.
+// <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+// <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.292.0/dist/umd/lucide-react.min.js"></script>
 
-        <section id="preview-section" class="p-6 border border-dashed border-gray-300 rounded-xl hidden">
-            <div id="preview-content" class="bg-white p-4 rounded-lg shadow-inner">
-                <div class="text-center text-gray-500">
-                    <p>미리보기가 여기에 표시됩니다.</p>
-                </div>
-            </div>
-        </section>
-    </div>
+const App = () => {
+  const [managers, setManagers] = useState([]);
+  const [selectedManager, setSelectedManager] = useState('');
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
+  const [feedbackData, setFeedbackData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-    <!-- The Modal -->
-    <div id="copyModal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <div id="modalContent">
-                <!-- Content will be inserted here -->
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Employee data and feedback. This data is kept here for demonstration purposes.
-            // In a real-world scenario, this would be fetched from a database.
-            const employeeData = [
-                {
-                    name: '박연실', total: 96, scores: [8, 9, 10, 10, 9, 10, 10, 10, 10, 10],
-                    feedback: [
-                        { rationale: '제품 특징을 명확하고 자신감 있게 전달하여 고객의 이해를 도왔습니다.', improvement: '현재도 훌륭합니다. 완벽한 설명을 통해 더욱 신뢰를 높여주세요.' },
-                        { rationale: '고객이 쉽게 따라 할 수 있도록 단계별로 친절하게 설명했습니다.', improvement: '현재도 훌륭합니다. 사용 팁을 추가하여 전문성을 강조하면 좋습니다.' },
-                        { rationale: '고객의 구매 심리를 파악하여 자연스럽게 묶음 판매를 유도했습니다.', improvement: '추가적인 묶음 상품 조합을 제안하여 객단가를 높여주세요.' },
-                        { rationale: '매우 친절한 목소리 톤과 따뜻한 응대로 고객 만족도를 극대화했습니다.', improvement: '현재도 완벽합니다. 지금처럼 꾸준히 친절함을 유지해 주세요.' },
-                        { rationale: '시종일관 흔들림 없는 목소리와 확신 있는 태도로 고객에게 신뢰를 주었습니다.', improvement: '현재도 훌륭합니다. 자신감 있는 모습은 판매에 큰 도움이 됩니다.' },
-                        { rationale: '고객과의 대화를 자연스럽게 이끌며 긍정적인 분위기를 조성했습니다.', improvement: '고객의 이야기에 더욱 적극적으로 공감하는 표현을 사용하면 더욱 좋습니다.' },
-                        { rationale: '고객의 한두 마디에서 숨겨진 니즈를 정확히 파악했습니다.', improvement: '현재도 탁월합니다. 파악된 니즈를 바탕으로 새로운 제품을 제안하는 훈련을 해보세요.' },
-                        { rationale: '고객의 상황과 취향에 맞는 제품을 정확히 추천했습니다.', improvement: '고객의 가족 구성원까지 고려한 맞춤형 추천은 더욱 감동을 줄 수 있습니다.' },
-                        { rationale: '유머러스하고 재치 있는 멘트로 고객에게 즐거운 경험을 선사했습니다.', improvement: '현재도 훌륭합니다. 특정 상황에 맞는 맞춤형 유머를 개발하면 좋습니다.' },
-                        { rationale: '구매를 망설이는 고객에게 확실한 확신을 주어 판매를 성공적으로 마무리했습니다.', improvement: '현재도 완벽합니다. 클로징 멘트를 다양화하여 더욱 노련해지면 좋습니다.' }
-                    ]
-                },
-                {
-                    name: '김숙자', total: 70, scores: [8, 5, 6, 9, 7, 9, 7, 5, 6, 8],
-                    feedback: [
-                        { rationale: '제품 특징을 차분하게 설명하여 고객이 편안하게 들을 수 있었습니다.', improvement: '설명 시에 핵심적인 강점을 강조하는 연습이 필요합니다.' },
-                        { rationale: '제품 사용 설명이 다소 부족하고 추상적으로 들렸습니다.', improvement: '고객이 실제로 사용하는 모습을 상상할 수 있도록 구체적인 예를 들어 설명해 주세요.' },
-                        { rationale: '묶음 판매 제안이 거의 없거나 고객 반응을 살피지 못했습니다.', improvement: '고객이 관심을 보일 때 2개 이상 구매 시 혜택을 자연스럽게 언급하는 연습이 필요합니다.' },
-                        { rationale: '매우 친절하고 상냥한 태도로 고객을 응대했습니다.', improvement: '친절한 태도는 큰 장점입니다. 이를 계속 유지해주세요.' },
-                        { rationale: '자신감이 다소 부족하여 목소리가 작아지는 경향이 보였습니다.', improvement: '확신에 찬 목소리로 또박또박 말하는 연습을 하면 좋습니다.' },
-                        { rationale: '고객의 질문에 대한 답변은 좋았으나, 먼저 대화를 이끌어가는 능력이 아쉽습니다.', improvement: '고객에게 먼저 말을 걸고 흥미를 유발할 수 있는 질문을 준비해 보세요.' },
-                        { rationale: '고객의 반응에만 의존하여 숨겨진 니즈를 파악하는 노력이 부족했습니다.', improvement: '제품에 대한 고객의 기대나 필요를 알아내기 위한 질문을 던져보세요.' },
-                        { rationale: '고객의 상황과 연결된 제품 추천이 약했습니다.', improvement: "고객이 '나에게 꼭 맞는 제품이구나'라고 느낄 수 있도록 맞춤형 추천 멘트를 연습해주세요." },
-                        { rationale: '재치 있는 멘트가 거의 없어서 대화가 단조로워졌습니다.', improvement: '간단한 유머나 공감 멘트를 사용해서 분위기를 밝게 만들면 좋습니다.' },
-                        { rationale: '구매 유도를 시도했지만, 고객에게 확신을 주는 멘트가 약했습니다.', improvement: '구매 결정 후 "정말 좋은 선택입니다"와 같은 긍정적인 클로징 멘트를 사용해 주세요.' }
-                    ]
-                },
-                {
-                    name: '임현숙', total: 70, scores: [9, 8, 6, 7, 9, 6, 6, 6, 7, 6],
-                    feedback: [
-                        { rationale: '제품의 핵심 특징을 잘 설명했습니다.', improvement: '고객의 이해도를 높일 수 있도록 추가적인 비유나 설명을 덧붙여 보세요.' },
-                        { rationale: '제품 사용법을 명확하게 전달했습니다.', improvement: '고객의 이해도를 확인하고, 추가 질문이 없는지 물어보는 습관을 들이면 좋습니다.' },
-                        { rationale: '묶음 판매 제안이 부족했습니다.', improvement: '2개 이상 구매 시의 가격 혜택을 적극적으로 어필해 보세요.' },
-                        { rationale: '친절했지만, 고객의 감정을 읽는 공감 능력이 아쉬웠습니다.', improvement: '고객의 반응에 맞춰 목소리 톤이나 속도를 조절해 보세요.' },
-                        { rationale: '자신감 있는 목소리로 응대하여 신뢰를 주었습니다.', improvement: '계속해서 확신 있는 모습을 유지해 주세요.' },
-                        { rationale: '단답형으로 응대하는 경향이 있었습니다.', improvement: '고객의 질문에 답한 후 추가적인 정보를 제공하여 대화를 이어가 보세요.' },
-                        { rationale: '고객의 숨겨진 니즈를 파악하려는 노력이 부족했습니다.', improvement: '고객의 표정이나 말투를 통해 어떤 제품을 원하는지 더 깊이 생각하고 질문해 보세요.' },
-                        { rationale: '획일적인 추천 멘트를 사용했습니다.', improvement: '각 고객의 상황에 맞는 특별한 추천 멘트를 연습해 보세요.' },
-                        { rationale: '재치 있는 멘트가 부족하여 딱딱한 분위기를 주었습니다.', improvement: '대화의 흐름을 부드럽게 만들 수 있는 짧고 재미있는 멘트를 준비해 보세요.' },
-                        { rationale: '구매 유도 멘트가 약했습니다.', improvement: '고객이 구매를 결심했을 때 "바로 포장해 드릴까요?"와 같이 적극적인 클로징을 시도해 보세요.' }
-                    ]
-                },
-                {
-                    name: '유영희', total: 67, scores: [8, 9, 7, 6, 8, 6, 5, 7, 5, 6],
-                    feedback: [
-                        { rationale: '제품의 주요 특징을 잘 설명했습니다.', improvement: '설명할 때 고객의 눈높이에 맞춰 어려운 용어를 풀어 설명해 주세요.' },
-                        { rationale: '제품 사용법 설명은 좋았습니다.', improvement: '고객이 어려워하는 부분이 없는지 직접 확인해 주는 적극성이 필요합니다.' },
-                        { rationale: '묶음 판매 제안이 약했습니다.', improvement: '여러 개를 함께 구매하면 더 좋다는 점을 명확히 설명해 주세요.' },
-                        { rationale: '친절했지만, 목소리 톤이 다소 낮아 활기가 부족했습니다.', improvement: '밝고 긍정적인 목소리를 내는 연습을 해보세요.' },
-                        { rationale: '자신감 있는 응대 태도가 필요합니다.', improvement: '제품에 대한 지식을 완벽하게 숙지하고 자신감을 가지세요.' },
-                        { rationale: '고객과의 대화가 단절되는 경향이 있었습니다.', improvement: '고객에게 "어떤 용도로 사용하실 계획이세요?"와 같은 질문으로 대화를 이어가세요.' },
-                        { rationale: '고객의 니즈를 파악하는 노력이 부족했습니다.', improvement: '고객이 원하는 바를 명확히 알기 위해 더 많은 질문을 해야 합니다.' },
-                        { rationale: '개인화된 제품 추천이 약했습니다.', improvement: '고객의 취향이나 가족 상황을 고려한 맞춤형 추천을 시도해 보세요.' },
-                        { rationale: '재치 있는 멘트가 없어 대화가 딱딱했습니다.', improvement: '대화를 유연하게 만들 수 있는 유머나 공감 멘트를 준비해 보세요.' },
-                        { rationale: '클로징 능력이 부족했습니다.', improvement: '고객이 제품을 살짝 만져보는 등 구매에 대한 긍정적인 신호를 보낼 때, 즉시 클로징을 시도해 보세요.' }
-                    ]
-                }
-            ];
+  // 구글 시트 URL의 ID를 여기에 입력하세요.
+  // 이 ID는 URL에서 "1eLu20DK7IXBSz_XnrChI5Pc0rIeaxgDXdaTOfz5LqhI" 와 같이 'd/'와 '/edit' 사이에 있는 문자열입니다.
+  const SHEET_ID = '1eLu20DK7IXBSz_XnrChI5Pc0rIeaxgDXdaTOfz5LqhI';
+  const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
-            const allEmployees = [
-                ...employeeData,
-                { name: '신동순', total: 91, scores: [9, 10, 9, 8, 9, 9, 10, 9, 9, 9], feedback: [] },
-                { name: '김민정', total: 89, scores: [9, 8, 9, 10, 9, 9, 9, 8, 8, 10], feedback: [] },
-                { name: '김종경', total: 87, scores: [9, 10, 9, 8, 9, 9, 9, 9, 7, 8], feedback: [] },
-                { name: '한혜진', total: 83, scores: [9, 10, 6, 8, 10, 8, 8, 7, 9, 8], feedback: [] },
-                { name: '서연순', total: 81, scores: [9, 6, 8, 8, 9, 10, 10, 5, 7, 9], feedback: [] },
-                { name: '이애경', total: 81, scores: [9, 9, 6, 8, 10, 9, 8, 8, 6, 8], feedback: [] },
-                { name: '김경자', total: 80, scores: [8, 6, 8, 8, 9, 9, 9, 7, 7, 9], feedback: [] },
-                { name: '김길자', total: 75, scores: [9, 6, 6, 8, 9, 8, 7, 8, 6, 8], feedback: [] },
-                { name: '박시연', total: 75, scores: [8, 7, 10, 6, 10, 5, 5, 6, 9, 9], feedback: [] },
-                { name: '손정애', total: 69, scores: [8, 7, 8, 7, 9, 6, 6, 5, 6, 7], feedback: [] },
-                { name: '김숙희', total: 90, scores: [9, 10, 9, 8, 9, 9, 10, 10, 7, 9], feedback: [] },
-            ];
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(GOOGLE_SHEET_URL);
+      if (!response.ok) {
+        throw new Error('네트워크 응답이 올바르지 않습니다.');
+      }
+      const text = await response.text();
+      const jsonText = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+      const data = JSON.parse(jsonText);
+      
+      const rows = data.table.rows;
+      const columns = data.table.cols;
+      
+      // 제공해주신 헤더 이름에 맞게 수정
+      const COLUMN_HEADERS = {
+        manager: '매니저명',
+        name: '사원명',
+        summary: '총평',
+        feedbackItems: [
+          { item: '제품특징', score: '제품특징 점수', basis: '제품특징 점수 근거', improvement: '제품특징 개선점' },
+          { item: '제품사용설명', score: '제품사용설명 점수', basis: '제품사용설명 점수 근거', improvement: '제품사용설명 개선점' },
+          { item: '묶음판매', score: '묶음판매 점수', basis: '묶음판매 점수 근거', improvement: '묶음판매 개선점' },
+          { item: '친절', score: '친절 점수', basis: '친절 점수 근거', improvement: '친절 개선점' },
+          { item: '자신감', score: '자신감 점수', basis: '자신감 점수 근거', improvement: '자신감 개선점' },
+          { item: '고객소통', score: '고객소통 점수', basis: '고객소통 점수 근거', improvement: '고객소통 개선점' },
+          { item: '고객 니즈 파악', score: '고객 니즈 파악 점수', basis: '고객 니즈 파악 점수 근거', improvement: '고객 니즈 파악 개선점' },
+          { item: '개인화된 제품 추천', score: '개인화된 제품 추천 점수', basis: '개인화된 제품 추천 점수 근거', improvement: '개인화된 제품 추천 개선점' },
+          { item: '재치 있는 멘트', score: '재치 있는 멘트 점수', basis: '재치 있는 멘트 점수 근거', improvement: '재치 있는 멘트 개선점' },
+          { item: '클로징 능력', score: '클로징 능력 점수', basis: '클로징 능력 점수 근거', improvement: '클로징 능력 개선점' },
+        ],
+      };
+
+      const getColumnIndex = (label) => {
+        const col = columns.find(c => c.label === label);
+        return col ? columns.indexOf(col) : -1;
+      };
+
+      const managerIndex = getColumnIndex(COLUMN_HEADERS.manager);
+      const nameIndex = getColumnIndex(COLUMN_HEADERS.name);
+      const summaryIndex = getColumnIndex(COLUMN_HEADERS.summary);
+      
+      const feedbackItemIndices = COLUMN_HEADERS.feedbackItems.map(item => ({
+        item: item.item,
+        scoreIndex: getColumnIndex(item.score),
+        basisIndex: getColumnIndex(item.basis),
+        improvementIndex: getColumnIndex(item.improvement)
+      }));
+
+      const missingColumns = [];
+      if (managerIndex === -1) missingColumns.push(COLUMN_HEADERS.manager);
+      if (nameIndex === -1) missingColumns.push(COLUMN_HEADERS.name);
+      if (summaryIndex === -1) missingColumns.push(COLUMN_HEADERS.summary);
+      feedbackItemIndices.forEach(item => {
+        if (item.scoreIndex === -1) missingColumns.push(item.score);
+        if (item.basisIndex === -1) missingColumns.push(item.basis);
+        if (item.improvementIndex === -1) missingColumns.push(item.improvement);
+      });
+
+      if (missingColumns.length > 0) {
+        const missingLabels = missingColumns.join(', ');
+        throw new Error(`필수 컬럼(${missingLabels})을 찾을 수 없습니다. 구글 시트의 헤더를 확인해주세요.`);
+      }
+
+      const groupedData = {};
+      const allManagers = new Set();
+      rows.forEach(row => {
+        const cells = row.c;
+        const managerName = cells[managerIndex]?.v || '';
+        const employeeName = cells[nameIndex]?.v || '';
+
+        if (managerName && employeeName) {
+          allManagers.add(managerName);
+          if (!groupedData[managerName]) {
+            groupedData[managerName] = {};
+          }
+          if (!groupedData[managerName][employeeName]) {
+            groupedData[managerName][employeeName] = {
+              feedbackItems: [],
+              summary: cells[summaryIndex]?.v || '',
+            };
+          }
+          feedbackItemIndices.forEach(item => {
+            const score = cells[item.scoreIndex]?.v;
+            const basis = cells[item.basisIndex]?.v || '';
+            const improvement = cells[item.improvementIndex]?.v || '';
             
-            const evaluationLabels = [
-                '제품 특징 설명', '제품 사용 설명', '묶음 판매', '친절', '자신감', 
-                '고객 소통', '고객 니즈 파악', '개인화된 제품 추천', '재치 있는 멘트', '클로징 능력'
-            ];
-
-            const employeeNameInput = document.getElementById('employeeNameInput');
-            const previewButton = document.getElementById('previewButton');
-            const captureAndCopyButton = document.getElementById('captureAndCopyButton');
-            const previewSection = document.getElementById('preview-section');
-            const previewContent = document.getElementById('preview-content');
-            
-            const copyModal = document.getElementById('copyModal');
-            const modalContent = document.getElementById('modalContent');
-            const closeButton = document.querySelector('.close-button');
-
-            let chartInstance = null;
-
-            // Function to render the preview report
-            function renderReport(employeeName) {
-                const employee = employeeData.find(e => e.name === employeeName);
-                const employeeAllData = allEmployees.find(e => e.name === employeeName);
-
-                if (!employeeAllData) {
-                    previewContent.innerHTML = `<p class="text-red-600 font-bold text-center">사원 정보를 찾을 수 없습니다.</p>`;
-                    return;
-                }
-                
-                // Clear previous chart if it exists
-                if (chartInstance) {
-                    chartInstance.destroy();
-                }
-
-                // Calculate average and max scores
-                const averageScores = new Array(evaluationLabels.length).fill(0);
-                const maxScores = new Array(evaluationLabels.length).fill(0);
-
-                allEmployees.forEach(e => {
-                    e.scores.forEach((score, index) => {
-                        averageScores[index] += score;
-                        if (score > maxScores[index]) {
-                            maxScores[index] = score;
-                        }
-                    });
-                });
-
-                for (let i = 0; i < averageScores.length; i++) {
-                    averageScores[i] /= allEmployees.length;
-                }
-                
-                // Dynamically determine the bar colors
-                const myScoreColors = employeeAllData.scores.map((score, index) => {
-                    if (score > averageScores[index]) {
-                        return 'rgba(255, 105, 180, 0.7)'; // Hot Pink
-                    } else if (score < averageScores[index]) {
-                        return 'rgba(135, 206, 250, 0.7)'; // Sky Blue
-                    } else {
-                        return 'rgba(150, 150, 150, 0.7)'; // Gray
-                    }
-                });
-
-                let feedbackHtml = `<p>아직 이 사원에 대한 상세 피드백이 준비되지 않았습니다. 매니저님께서 직접 피드백을 추가해 주세요.</p>`;
-                if (employee && employee.feedback && employee.feedback.length > 0) {
-                    feedbackHtml = employee.feedback.map((item, index) => `
-                        <div class="mb-6 p-4 border rounded-lg bg-gray-50">
-                            <h4 class="font-bold text-lg text-gray-800 mb-2">${index + 1}. ${evaluationLabels[index]} (${employee.scores[index]}점)</h4>
-                            <p class="mb-2"><strong class="text-blue-600">평가 근거:</strong> ${item.rationale}</p>
-                            <p><strong class="text-green-600">개선할 점:</strong> ${item.improvement}</p>
-                        </div>
-                    `).join('');
-                }
-
-                let generalMessage = '';
-                if (employeeAllData.total >= 90) {
-                    generalMessage = '매우 우수한 성과를 보여주셨습니다. 탁월한 역량과 적극적인 자세로 팀에 큰 기여를 하고 있습니다. 현재의 강점을 더욱 발전시켜 리더로서의 역량을 키워나가시길 바랍니다.';
-                } else if (employeeAllData.total >= 80) {
-                    generalMessage = '훌륭한 역량을 발휘하고 있습니다. 대부분의 평가 항목에서 평균 이상의 점수를 기록하며 안정적인 성과를 내고 있습니다. 부족한 부분을 보완한다면 더욱 뛰어난 성과를 낼 수 있을 것입니다.';
-                } else if (employeeAllData.total >= 70) {
-                    generalMessage = '안정적인 역량을 보여주고 있습니다. 특정 분야에서는 강점을 보이지만, 몇몇 항목에서 개선이 필요합니다. 목표를 설정하고 꾸준히 노력하면 더 큰 성장을 이룰 수 있을 것입니다.';
-                } else {
-                    generalMessage = '성장을 위한 노력이 필요한 시점입니다. 고객 응대 기술과 제품 지식 향상에 집중하여 기본기를 다져나가야 합니다. 이번 피드백을 바탕으로 개선점을 파악하고 적극적으로 발전시켜 나가시길 바랍니다.';
-                }
-
-                const reportHtml = `
-                    <div class="text-center mb-6">
-                        <h2 class="text-2xl font-extrabold text-blue-600 mb-2">${employeeName} 사원</h2>
-                        <p class="text-gray-600 text-lg">종합 점수: <span class="text-2xl font-bold text-gray-800">${employeeAllData.total}</span>점</p>
-                    </div>
-
-                    <div class="card p-4 border rounded-xl mb-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-2 text-left">세부 평가 항목</h3>
-                        <div class="chart-container">
-                            <canvas id="previewChart"></canvas>
-                        </div>
-                        <!-- Legend for bar colors -->
-                        <div class="mt-4 flex flex-col items-center space-y-2 text-sm text-gray-600 md:flex-row md:justify-center md:space-y-0 md:space-x-4">
-                            <div class="flex items-center">
-                                <span class="w-8 h-4 rounded-sm mr-2" style="background-color: rgba(255, 105, 180, 0.7);"></span>
-                                <span>평균보다 높음</span>
-                            </div>
-                            <div class="flex items-center">
-                                <span class="w-8 h-4 rounded-sm mr-2" style="background-color: rgba(135, 206, 250, 0.7);"></span>
-                                <span>평균보다 낮음</span>
-                            </div>
-                            <div class="flex items-center">
-                                <span class="w-8 h-4 rounded-sm mr-2" style="background-color: rgba(150, 150, 150, 0.7);"></span>
-                                <span>평균과 같음</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card p-4 border rounded-xl mb-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-2 text-left">종합 피드백</h3>
-                        <div class="text-gray-700 text-sm leading-relaxed text-left">${feedbackHtml}</div>
-                    </div>
-
-                    <div class="card p-4 border rounded-xl">
-                        <h3 class="text-lg font-bold text-gray-800 mb-2 text-left">😊 총평</h3>
-                        <div class="text-gray-700 text-sm leading-relaxed text-left">${generalMessage}</div>
-                    </div>
-                `;
-                
-                previewContent.innerHTML = reportHtml;
-                previewSection.classList.remove('hidden');
-
-                // Create the preview chart
-                const previewChartCtx = document.getElementById('previewChart').getContext('2d');
-                chartInstance = new Chart(previewChartCtx, {
-                    data: {
-                        labels: evaluationLabels,
-                        datasets: [
-                            {
-                                type: 'bar',
-                                label: '나의 점수',
-                                data: employeeAllData.scores,
-                                backgroundColor: myScoreColors,
-                                borderColor: myScoreColors,
-                                borderWidth: 1
-                            },
-                            {
-                                type: 'line',
-                                label: '평균 점수',
-                                data: averageScores,
-                                backgroundColor: 'blue',
-                                borderColor: 'blue',
-                                pointStyle: 'circle',
-                                pointRadius: 8,
-                                pointHoverRadius: 10,
-                                showLine: false
-                            },
-                            {
-                                type: 'line',
-                                label: '최고 점수',
-                                data: maxScores,
-                                backgroundColor: 'red',
-                                borderColor: 'red',
-                                pointStyle: 'circle',
-                                pointRadius: 8,
-                                pointHoverRadius: 10,
-                                showLine: false
-                            }
-                        ]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: true,
-                                labels: {
-                                    usePointStyle: true,
-                                    filter: function(item, chart) {
-                                        return item.text !== '나의 점수';
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.dataset.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
-                                        if (context.parsed.x !== null) {
-                                            label += context.parsed.x.toFixed(1) + '점';
-                                        }
-                                        return label;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                beginAtZero: true,
-                                max: 10,
-                                title: {
-                                    display: true,
-                                    text: '점수'
-                                }
-                            },
-                            y: {
-                                ticks: {
-                                    callback: function(value, index, ticks) {
-                                        return evaluationLabels[index];
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
+            if (score !== null) {
+              groupedData[managerName][employeeName].feedbackItems.push({
+                item: item.item,
+                score: score,
+                basis: basis,
+                improvement: improvement,
+              });
             }
+          });
+        }
+      });
+      
+      setManagers(Array.from(allManagers));
+      setFeedbackData(groupedData);
+      setLoading(false);
+    } catch (err) {
+      console.error('데이터를 불러오는 중 오류 발생:', err);
+      setError(`데이터를 불러오는 데 실패했습니다: ${err.message}. 구글 시트 URL 및 공개 설정을 확인하거나 컬럼 헤더 이름이 올바른지 확인해주세요.`);
+      setLoading(false);
+    }
+  }, [GOOGLE_SHEET_URL]);
 
-            previewButton.addEventListener('click', function() {
-                const name = employeeNameInput.value.trim();
-                if (name) {
-                    renderReport(name);
-                } else {
-                    previewContent.innerHTML = `<p class="text-red-600 font-bold text-center">사원 이름을 입력해주세요.</p>`;
-                    previewSection.classList.remove('hidden');
-                }
-            });
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-            captureAndCopyButton.addEventListener('click', function() {
-                const name = employeeNameInput.value.trim();
-                if (!name) {
-                    showModal('사원 이름을 입력해야 이미지를 복사할 수 있습니다.');
-                    return;
-                }
+  const handleManagerChange = (event) => {
+    const newManager = event.target.value;
+    setSelectedManager(newManager);
+    setSelectedEmployeeName(''); // 매니저가 바뀌면 사원명 초기화
+    if (feedbackData[newManager]) {
+      setEmployees(Object.keys(feedbackData[newManager]));
+    } else {
+      setEmployees([]);
+    }
+  };
 
-                // Show loading spinner
-                modalContent.innerHTML = `
-                    <div class="spinner"></div>
-                    <p class="mt-4">이미지를 생성하고 있습니다...</p>
-                `;
-                copyModal.style.display = 'block';
-                
-                // Get the preview content element
-                const contentToCapture = document.getElementById('preview-content');
+  const handleEmployeeChange = (event) => {
+    setSelectedEmployeeName(event.target.value);
+  };
 
-                html2canvas(contentToCapture, {
-                    scale: 2, // Capture at a higher resolution for better quality
-                    useCORS: true
-                }).then(canvas => {
-                    canvas.toBlob(blob => {
-                        if (navigator.clipboard && navigator.clipboard.write) {
-                            try {
-                                const item = new ClipboardItem({ 'image/png': blob });
-                                navigator.clipboard.write([item]).then(() => {
-                                    showSuccessModal(canvas.toDataURL());
-                                }).catch(err => {
-                                    console.error('Failed to copy image to clipboard:', err);
-                                    showErrorModal('이미지 복사에 실패했습니다. 브라우저 설정을 확인해주세요.');
-                                });
-                            } catch (e) {
-                                console.error('ClipboardItem error:', e);
-                                showErrorModal('이미지 복사를 지원하지 않는 브라우저입니다.');
-                            }
-                        } else {
-                            showErrorModal('브라우저가 이미지 복사를 지원하지 않습니다.');
-                        }
-                    }, 'image/png');
-                });
-            });
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-gray-100 p-4">
+        <div className="text-xl text-gray-700">데이터를 불러오는 중...</div>
+      </div>
+    );
+  }
 
-            // Modal related functions
-            function showModal(message) {
-                modalContent.innerHTML = `<p class="text-red-600 font-bold text-lg">${message}</p>`;
-                copyModal.style.display = 'block';
-            }
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-red-100 p-4">
+        <div className="text-lg text-red-700 text-center">{error}</div>
+      </div>
+    );
+  }
 
-            function showSuccessModal(imageDataUrl) {
-                modalContent.innerHTML = `
-                    <h3 class="text-xl font-bold text-green-600 mb-4">이미지 복사 성공!</h3>
-                    <p class="text-gray-700 mb-4">아래 이미지가 클립보드에 복사되었습니다. 사원에게 바로 공유해 보세요.</p>
-                    <div class="mobile-preview-container mb-4">
-                        <img src="${imageDataUrl}" class="w-full h-auto rounded-lg max-w-none">
-                    </div>
-                `;
-            }
+  const selectedEmployeeData = selectedManager && selectedEmployeeName ? feedbackData[selectedManager][selectedEmployeeName] : null;
 
-            function showErrorModal(message) {
-                modalContent.innerHTML = `
-                    <h3 class="text-xl font-bold text-red-600 mb-4">오류 발생</h3>
-                    <p class="text-gray-700">${message}</p>
-                `;
-            }
-
-            closeButton.onclick = function() {
-                copyModal.style.display = 'none';
-            }
-
-            window.onclick = function(event) {
-                if (event.target == copyModal) {
-                    copyModal.style.display = 'none';
-                }
-            }
+  // 전체 직원의 평균 점수를 계산합니다.
+  const calculateAggregateData = () => {
+    if (!feedbackData) return {};
+    const allItemsData = {};
+    Object.values(feedbackData).forEach(managerData => {
+      Object.values(managerData).forEach(employeeData => {
+        employeeData.feedbackItems.forEach(item => {
+          if (!allItemsData[item.item]) {
+            allItemsData[item.item] = { total: 0, count: 0 };
+          }
+          allItemsData[item.item].total += item.score;
+          allItemsData[item.item].count += 1;
         });
-    </script>
-</body>
-</html>
+      });
+    });
+
+    const aggregateData = {};
+    for (const item in allItemsData) {
+      aggregateData[item] = {
+        avg: allItemsData[item].total / allItemsData[item].count,
+      };
+    }
+    return aggregateData;
+  };
+  
+  const aggregateData = calculateAggregateData();
+  
+  const chartData = selectedEmployeeData ? selectedEmployeeData.feedbackItems.map(item => ({
+    name: item.item,
+    // 점수가 이미 10점 만점이라고 가정하고 그대로 사용
+    내점수: item.score,
+    평균점수: aggregateData[item.item] ? aggregateData[item.item].avg : 0,
+  })) : [];
+
+  // 항목 수에 따라 그래프 높이를 동적으로 계산
+  const chartHeight = Math.max(300, chartData.length * 40);
+
+  // Recharts Y축에 사용할 커스텀 텍스트 컴포넌트
+  const CustomizedYAxisTick = (props) => {
+    const { x, y, payload } = props;
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={16} textAnchor="end" fill="#6b7280" fontWeight="bold">
+          {payload.value}
+        </text>
+      </g>
+    );
+  };
+
+  return (
+    <div className="bg-gray-100 min-h-screen p-4 sm:p-8 font-sans antialiased">
+      <div className="max-w-lg mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+            사원 피드백 조회
+          </h1>
+          <button
+            onClick={fetchData}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition-colors"
+          >
+            <RefreshCcw size={16} />
+            <span>데이터 다시 불러오기</span>
+          </button>
+        </div>
+
+        {/* 매니저명 선택 드롭다운 */}
+        <div className="mb-4">
+          <label htmlFor="manager-select" className="block text-gray-700 font-semibold mb-2">
+            매니저명 선택
+          </label>
+          <select
+            id="manager-select"
+            value={selectedManager}
+            onChange={handleManagerChange}
+            className="w-full p-3 border border-gray-300 rounded-lg text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+          >
+            <option value="" disabled>--- 매니저를 선택하세요 ---</option>
+            {managers.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 사원명 선택 드롭다운 (매니저 선택 후 활성화) */}
+        <div className="mb-8">
+          <label htmlFor="employee-select" className="block text-gray-700 font-semibold mb-2">
+            사원명 선택
+          </label>
+          <select
+            id="employee-select"
+            value={selectedEmployeeName}
+            onChange={handleEmployeeChange}
+            disabled={!selectedManager}
+            className={`w-full p-3 border border-gray-300 rounded-lg text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${!selectedManager ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <option value="" disabled>--- 사원명을 선택하세요 ---</option>
+            {employees.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedEmployeeName && selectedEmployeeData && (
+          <div>
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">
+                {selectedEmployeeName}님의 피드백
+              </h2>
+            </div>
+            
+            <div className="bg-blue-50 p-4 rounded-xl shadow-inner mb-8">
+              <h3 className="text-xl font-semibold text-gray-700 mb-4">평가 항목별 점수</h3>
+              <ResponsiveContainer width="100%" height={chartHeight}>
+                <ComposedChart layout="vertical" data={chartData} margin={{ top: 5, right: 30, left: 160, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" domain={[0, 10]} tickCount={11} interval={0} stroke="#6b7280" />
+                  <YAxis type="category" dataKey="name" stroke="#6b7280" tick={<CustomizedYAxisTick />} />
+                  <Tooltip 
+                    formatter={(value, name) => {
+                        if (name === '내점수') return [`내 점수: ${value}`];
+                        if (name === '평균점수') return [`평균 점수: ${value.toFixed(1)}`];
+                        return [value];
+                    }} 
+                  />
+                  <Bar dataKey="내점수" fill="#88d8b0" barSize={20} radius={[0, 10, 10, 0]} />
+                  <Scatter name="평균 점수" dataKey="평균점수" fill="#ff6699" />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div className="flex justify-center mt-4 space-x-4">
+                <div className="flex items-center">
+                  <span className="w-4 h-4 bg-[#ff6699] rounded-full mr-2"></span>
+                  <span>평균 점수</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-8 h-4 bg-[#88d8b0] rounded-md mr-2"></div>
+                  <span>내 점수</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mb-8">
+              <h3 className="text-xl font-semibold text-gray-700 mb-4">종합 피드백</h3>
+              <div className="space-y-4">
+                {selectedEmployeeData.feedbackItems.map((item, index) => {
+                  const isAboveAverage = item.score > (aggregateData[item.item]?.avg || 0);
+                  return (
+                    <CollapsibleCard
+                      key={index}
+                      title={item.item}
+                      basis={item.basis}
+                      improvement={item.improvement}
+                      isAboveAverage={isAboveAverage}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-green-50 p-6 rounded-xl shadow-inner border-l-4 border-green-400">
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">총평</h3>
+              <p className="text-gray-600 leading-relaxed">
+                {selectedEmployeeData.summary}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CollapsibleCard = ({ title, basis, improvement, isAboveAverage }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <div
+        className="flex justify-between items-center p-4 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center space-x-2">
+          <span className="font-semibold text-gray-800 whitespace-nowrap overflow-hidden truncate">
+            {title}
+          </span>
+          {isAboveAverage && (
+            <span role="img" aria-label="thumbs up" className="text-lg">
+              👍
+            </span>
+          )}
+        </div>
+        {isOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+      </div>
+      <div
+        className={`bg-white p-4 transition-all duration-300 ease-in-out ${
+          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
+        }`}
+      >
+        <p className="text-gray-600 mb-2">
+          <strong className="text-blue-600">평가 근거:</strong> {basis}
+        </p>
+        <p className="text-gray-600">
+          <strong className="text-red-600">개선할 점:</strong> {improvement}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default App;
