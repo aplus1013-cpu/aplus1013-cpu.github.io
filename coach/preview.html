@@ -162,6 +162,21 @@ td.r,th.r{text-align:right}
 .login p{margin:0;color:var(--muted)}
 .rolepick{display:flex;flex-direction:column;gap:8px}
 @media (prefers-reduced-motion:reduce){.stage.run .ic{animation:none}.bar i{transition:none}}
+textarea{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;width:100%;min-height:76px;resize:vertical}
+.cmp{display:grid;grid-template-columns:1fr 44px 70px;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.cmp:first-of-type{border-top:0}
+.cmp.h{font-size:12px;color:var(--muted);font-weight:600;padding-top:0}
+.cmp .ai{font-family:var(--mono);text-align:center;color:var(--muted)}
+.cmp .gap{font-size:11.5px;color:var(--warn);font-weight:600}
+.attempt{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:11px 14px;border-top:1px solid var(--line);background:none;border-left:0;border-right:0;border-bottom:0;width:100%;text-align:left}
+.attempt:first-child{border-top:0}
+.attempt[aria-pressed="true"]{background:var(--accent-soft)}
+.radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center}
+.attempt[aria-pressed="true"] .radio{border-color:var(--accent)}
+.attempt[aria-pressed="true"] .radio::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.sw.ai{width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.linechart text{fill:var(--muted);font-size:11px;font-family:var(--mono)}
+.linechart .grid{stroke:var(--line)}
 </style>
 
 <div class="strip"><div class="strip-in"><b>미리보기 · 샘플 데이터</b><div class="roles" id="roles"></div></div></div>
@@ -177,6 +192,7 @@ const ICON={
  book:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/>',
  list:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ star:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
  back:'<path d="M15 5l-7 7 7 7"/>',
  file:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/>',
  chev:'<path d="M6 9l6 6 6-6"/>'
@@ -228,8 +244,8 @@ const PRODUCTS=[
 ];
 const P=id=>PRODUCTS.find(p=>p.id===id);
 const EMPS=[
- {id:'m1',name:'박서준',store:'강남점'},{id:'m2',name:'김민지',store:'강남점'},
- {id:'m3',name:'이하은',store:'강남점'},{id:'m4',name:'최도윤',store:'강남점'}
+ {id:'m1',name:'박서준',no:'20231042',store:'강남점'},{id:'m2',name:'김민지',no:'20220815',store:'강남점'},
+ {id:'m3',name:'이하은',no:'20240301',store:'강남점'},{id:'m4',name:'최도윤',no:'20230517',store:'강남점'}
 ];
 const E=id=>EMPS.find(e=>e.id===id);
 const EVIDENCE={
@@ -238,62 +254,63 @@ const EVIDENCE={
  missed:[['—','고객이 세럼을 집어 든 07:20 이후에도 묶음 제안이 없음'],['—','해당 멘트가 대화에서 확인되지 않음']],
  viol:[['06:02','“이거 바르면 트러블도 싹 들어가요.” (의약품 효능 표현)']]
 };
-// status: m=충족, p=부분, x=누락, v=위반
+/* status: practice(사원만) · submitted(매니저 평가 대기) · reviewing(매니저 평가 중) · completed(공개) */
 function mkEval(o){
- const pr=P(o.p);
- const pat=o.pat||[];
- const comp=pr.checklist.map((c,i)=>{
-  const st=pat[i]||'m';
+ const pr=P(o.p);const pat=o.pat||[];
+ const comp=pr.checklist.map((c,i)=>{const st=pat[i]||'m';
   const pool=st==='m'?(c[0]==='금지 표현'?[EVIDENCE.met[3]]:EVIDENCE.met.slice(0,3)):st==='p'?EVIDENCE.partial:st==='x'?EVIDENCE.missed:EVIDENCE.viol;
-  return {type:c[0],req:c[1],st,ev:pool[i%pool.length]};
- });
+  return {type:c[0],req:c[1],st,ev:pool[i%pool.length]}});
  const items=CRIT.map((n,i)=>({name:n,score:o.s[i],avg:TEAM_AVG[i],basis:BASIS[n][i%2?1:0],basis2:BASIS[n][i%2?0:1],improve:IMPROVE[n]}));
- return Object.assign({comp,items},o);
+ return Object.assign({comp,items,mgr:null,note:''},o);
 }
+const SUM_A='밝은 태도와 고객 공감은 좋은 수준입니다. 제품 효능 설명도 교육자료 수치를 정확히 인용했습니다. 다만 1+1 행사의 핵심인 세럼 묶음 제안을 놓쳤고, 고객이 망설일 때 클로징 멘트 없이 대화가 끝났습니다.';
+const TASK_A=['세럼 묶음 제안 콜멘트를 고객이 세럼을 볼 때 바로 쓰기','“생각해 볼게요”에 대한 클로징 멘트 2가지 외우기','세라마이드 3종 성분을 한 문장으로 설명하기'];
 let EVALS=[
- mkEval({id:'e1',emp:'m1',p:'p1',date:'9월 24일 16:20',by:'self',status:'draft',s:[8,7,5,9,7,8,6,5,7,4],prev:6.1,dur:'14분 12초',src:'매장촬영_0924.mp4',orig:'812MB',comp_:'9.4MB',pat:['m','p','m','m','x','p','m','m'],
-  summary:'밝은 태도와 고객 공감은 팀에서 가장 좋은 수준입니다. 제품 효능 설명도 교육자료 수치를 정확히 인용했습니다. 다만 1+1 행사의 핵심인 세럼 묶음 제안을 놓쳤고, 고객이 망설일 때 클로징 멘트 없이 대화가 끝났습니다. 행사 콜멘트 두 문장만 몸에 익히면 성과가 바로 달라질 수 있습니다.',
-  tasks:['세럼 묶음 제안 콜멘트를 고객이 세럼을 볼 때 바로 쓰기','“생각해 볼게요”에 대한 클로징 멘트 2가지 외우기','세라마이드 3종 성분을 한 문장으로 설명하기']}),
- mkEval({id:'e7',emp:'m3',p:'p1',date:'9월 24일 15:02',by:'manager',status:'analyzing',s:CRIT.map(()=>0),prev:5.6,dur:'22분 05초',src:'통화녹음_이하은.m4a',orig:'31MB',comp_:'5.2MB'}),
- mkEval({id:'e3',emp:'m3',p:'p1',date:'9월 23일 18:40',by:'manager',status:'draft',s:[6,6,4,8,5,7,5,4,6,5],prev:5.6,dur:'9분 48초',src:'이하은_녹음.m4a',orig:'10MB',comp_:'2.3MB',pat:['m','x','p','m','x','x','v','m'],
-  summary:'친절하고 성실한 응대였지만 행사 내용 전달이 부족했습니다. 트러블 개선 표현은 금지 표현에 해당하므로 바로 교정이 필요합니다.',
-  tasks:['금지 표현 목록 다시 확인하기','행사 오프닝 멘트로 대화 시작하기']}),
- mkEval({id:'e4',emp:'m4',p:'p2',date:'9월 23일 13:15',by:'self',status:'draft',s:[7,7,6,8,8,7,7,6,8,6],prev:6.8,dur:'11분 30초',src:'최도윤_0923.mov',orig:'640MB',comp_:'7.1MB',pat:['m','p','m','m','p','m'],
-  summary:'자신감 있는 설명과 재치 있는 멘트가 강점입니다. 선크림 병행 안내가 짧았습니다.',tasks:['아침 사용 시 선크림 병행 이유를 한 문장 더 설명하기']}),
- mkEval({id:'e2',emp:'m2',p:'p2',date:'9월 23일 11:30',by:'manager',status:'confirmed',s:[9,8,8,9,8,9,8,8,7,8],prev:7.9,dur:'12분 02초',src:'김민지_녹음.m4a',orig:'12MB',comp_:'2.8MB',pat:['m','m','m','m','m','m'],
-  summary:'교육자료의 필수 설명과 콜멘트를 모두 자연스럽게 소화했습니다. 팀 교육 사례로 공유할 만한 응대입니다.',tasks:['이번 녹취를 팀 교육 사례로 공유하기']}),
- mkEval({id:'e5',emp:'m1',p:'p2',date:'9월 18일 17:05',by:'manager',status:'confirmed',s:[7,6,4,8,6,7,6,5,6,3],prev:5.8,dur:'8분 20초',src:'박서준_0918.m4a',orig:'8MB',comp_:'1.9MB',pat:['m','x','m','p','x','m'],
-  summary:'기본 응대는 좋지만 행사 클로징이 약합니다.',tasks:['클로징 멘트 연습']}),
- mkEval({id:'e6',emp:'m2',p:'p1',date:'9월 16일 14:40',by:'self',status:'confirmed',s:[8,8,7,9,8,8,8,7,7,7],prev:7.6,dur:'10분 11초',src:'김민지_0916.m4a',orig:'10MB',comp_:'2.4MB',pat:['m','m','p','m','m','m','m','m'],
-  summary:'안정적인 응대입니다.',tasks:['사용량 안내 구체화']})
+ // 박서준 · 수분크림 연습 4회
+ mkEval({id:'a4',emp:'m1',p:'p1',n:4,kind:'practice',status:'practice',date:'9월 24일 19:10',s:[8,8,7,9,8,8,7,6,7,6],dur:'11분 02초',src:'연습4_0924.m4a',orig:'11MB',out:'2.6MB',pat:['m','m','m','m','p','m','m','m'],summary:'묶음 제안을 시도했고 클로징도 좋아졌습니다. 세럼 연계 멘트를 교육자료 문구대로 말하면 완성입니다.',tasks:['세럼 연계 멘트를 교육자료 문구 그대로 말하기']}),
+ mkEval({id:'a3',emp:'m1',p:'p1',n:3,kind:'practice',status:'submitted',date:'9월 24일 16:20',s:[8,7,6,9,7,8,6,6,7,5],dur:'14분 12초',src:'매장촬영_0924.mp4',orig:'812MB',out:'9.4MB',pat:['m','p','m','m','x','p','m','m'],summary:SUM_A,tasks:TASK_A,note:'고객 반응이 제일 좋았던 대화라 이걸로 제출합니다. 묶음 제안은 아직 연습 중이에요.'}),
+ mkEval({id:'a2',emp:'m1',p:'p1',n:2,kind:'practice',status:'practice',date:'9월 22일 12:40',s:[7,6,5,9,6,7,6,5,6,4],dur:'9분 30초',src:'연습2_0922.m4a',orig:'9MB',out:'2.2MB',pat:['m','x','p','m','x','x','m','m'],summary:'오프닝은 좋았지만 필수 설명이 빠졌습니다.',tasks:['세라마이드 3종 설명 연습']}),
+ mkEval({id:'a1',emp:'m1',p:'p1',n:1,kind:'practice',status:'practice',date:'9월 20일 18:05',s:[6,5,4,8,5,7,5,4,6,3],dur:'7분 48초',src:'연습1_0920.m4a',orig:'8MB',out:'1.8MB',pat:['p','x','x','p','x','x','m','m'],summary:'첫 연습입니다. 행사 콜멘트를 거의 사용하지 않았습니다.',tasks:['행사 콜멘트 3개 외우기']}),
+ // 박서준 · 비타C 완료
+ mkEval({id:'b2',emp:'m1',p:'p2',n:2,kind:'practice',status:'completed',date:'9월 18일 17:05',s:[7,7,6,8,7,7,6,6,6,5],dur:'8분 20초',src:'박서준_0918.m4a',orig:'8MB',out:'1.9MB',pat:['m','p','m','m','p','m'],summary:'기본 응대는 좋지만 행사 클로징이 약합니다.',tasks:['클로징 연습'],note:'두 번째 연습이 더 자연스러웠어요.',
+  mgr:{s:[7,8,6,9,6,8,7,6,7,6],comment:'녹음으로는 덜 느껴지지만 매장에서 보면 고객 응대가 훨씬 여유 있습니다. 선크림 병행 안내는 AI 평가대로 짧았어요. 다음 주엔 클로징 멘트를 먼저 연습해 봅시다.',tasks:['“9월 말까지만 이 구성이에요” 클로징 멘트 매일 3번 롤플레이','선크림 병행 이유 한 문장 준비'],date:'9월 19일'}}),
+ mkEval({id:'b1',emp:'m1',p:'p2',n:1,kind:'practice',status:'practice',date:'9월 16일 13:20',s:[6,6,5,8,6,7,5,5,6,4],dur:'6분 10초',src:'박서준_0916.m4a',orig:'6MB',out:'1.4MB',pat:['m','x','p','m','x','m'],summary:'첫 연습입니다.',tasks:['기획세트 구성 설명 연습']}),
+ // 팀 다른 사원 (매니저가 보는 건: 제출 또는 대리 업로드)
+ mkEval({id:'c1',emp:'m4',p:'p2',n:3,kind:'practice',status:'submitted',date:'9월 23일 13:15',s:[7,7,6,8,8,7,7,6,8,6],dur:'11분 30초',src:'최도윤_0923.mov',orig:'640MB',out:'7.1MB',pat:['m','p','m','m','p','m'],summary:'자신감 있는 설명과 재치 있는 멘트가 강점입니다. 선크림 병행 안내가 짧았습니다.',tasks:['아침 사용 시 선크림 병행 이유를 한 문장 더 설명하기'],note:'세 번 연습한 것 중 클로징이 제일 잘 된 회차입니다.'}),
+ mkEval({id:'c2',emp:'m3',p:'p1',n:0,kind:'proxy',status:'reviewing',date:'9월 23일 18:40',s:[6,6,4,8,5,7,5,4,6,5],dur:'9분 48초',src:'이하은_녹음.m4a',orig:'10MB',out:'2.3MB',pat:['m','x','p','m','x','x','v','m'],summary:'친절하고 성실한 응대였지만 행사 내용 전달이 부족했습니다. 트러블 개선 표현은 금지 표현에 해당하므로 바로 교정이 필요합니다.',tasks:['금지 표현 목록 다시 확인하기','행사 오프닝 멘트로 대화 시작하기']}),
+ mkEval({id:'c3',emp:'m2',p:'p2',n:2,kind:'practice',status:'completed',date:'9월 23일 11:30',s:[9,8,8,9,8,9,8,8,7,8],dur:'12분 02초',src:'김민지_녹음.m4a',orig:'12MB',out:'2.8MB',pat:['m','m','m','m','m','m'],summary:'교육자료의 필수 설명과 콜멘트를 모두 자연스럽게 소화했습니다.',tasks:['이번 녹취를 팀 교육 사례로 공유하기'],
+  mgr:{s:[9,9,8,9,9,9,8,8,8,8],comment:'팀 교육 사례로 쓰겠습니다.',tasks:['다음 주 조회 시간에 롤플레이 시연'],date:'9월 23일'}})
 ];
-const total=e=>+(e.items.reduce((a,b)=>a+b.score,0)/e.items.length).toFixed(1);
+const avg=a=>+(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1);
+const aiTotal=e=>avg(e.items.map(i=>i.score));
+const mgrTotal=e=>e.mgr&&e.mgr.s.every(v=>v!=null)?avg(e.mgr.s):null;
 const compRate=e=>{if(!e.comp.length)return 0;const v=e.comp.reduce((a,c)=>a+(c.st==='m'?1:c.st==='p'?.5:0),0);return Math.round(v/e.comp.length*100)};
-const byEmp=id=>EVALS.filter(e=>e.emp===id&&e.status!=='analyzing');
+const managerVisible=e=>e.kind==='proxy'||e.status!=='practice';
 
 /* ---------- 상태 ---------- */
-const S={role:null,tab:null,view:null,flow:null,open:{},edit:false,toast:null,matOpen:'p1'};
+const S={role:null,tab:null,view:null,flow:null,open:{},toast:null,matOpen:'p1',histProd:'p1',pick:null,draft:null};
 const TABS={
- manager:[['dash','홈','home'],['upload','평가 등록','up'],['review','검토 대기','inbox'],['team','사원','users']],
- employee:[['mine','내 결과','chart'],['upload','업로드','up'],['study','교육자료','book']],
+ manager:[['dash','홈','home'],['review','제출됨','inbox'],['upload','대리 업로드','up'],['team','사원','users']],
+ employee:[['practice','연습하기','up'],['history','연습 기록','chart'],['results','받은 평가','star'],['study','교육자료','book']],
  admin:[['adash','전체 현황','home'],['events','행사·교육자료','book'],['criteria','평가 항목','list']]
 };
 const ROLE_NAME={manager:'매니저',employee:'사원',admin:'관리자'};
-const ME={manager:{name:'정유진',sub:'강남점 매니저'},employee:{name:'박서준',sub:'강남점 사원',id:'m1'},admin:{name:'본사 교육팀',sub:'관리자'}};
+const ME={manager:{name:'정유진',sub:'강남점 매니저'},employee:{name:'박서준',sub:'사번 20231042',id:'m1'},admin:{name:'본사 교육팀',sub:'관리자'}};
 
-function setRole(r){S.role=r;S.tab=TABS[r][0][0];S.view=null;S.flow=null;S.edit=false;render()}
-function go(tab){S.tab=tab;S.view=null;S.edit=false;if(tab==='upload')newFlow();render();scrollTo(0,0)}
-function openEval(id){S.view={name:'eval',id};S.open={};S.edit=false;render();scrollTo(0,0)}
-function newFlow(){S.flow={step:S.role==='employee'?2:1,emp:S.role==='employee'?ME.employee.id:null,prod:null,file:null,phase:'pick',pct:0,stage:0}}
+function setRole(r){S.role=r;S.tab=TABS[r][0][0];S.view=null;S.toast=null;if(S.tab==='practice')newFlow();render();scrollTo(0,0)}
+function go(tab){S.tab=tab;S.view=null;S.toast=null;if(tab==='upload'||tab==='practice')newFlow();render();scrollTo(0,0)}
+function openEval(id){S.view={id};S.open={};S.toast=null;const e=EVALS.find(x=>x.id===id);
+ S.draft=e.mgr?null:{s:e.items.map(i=>i.score),comment:'',tasks:e.tasks.join('\n')};render();scrollTo(0,0)}
+function newFlow(){const emp=S.role==='employee';S.flow={step:emp?2:1,emp:emp?ME.employee.id:null,prod:null,file:null,phase:'pick',pct:0,stage:0}}
 
 /* ---------- 공통 조각 ---------- */
-const statusPill=st=>({draft:'<span class="pill p-warn">검토 대기</span>',confirmed:'<span class="pill p-good">확정</span>',analyzing:'<span class="pill p-info">분석 중</span>'}[st]);
-const byPill=b=>b==='self'?'<span class="pill p-mute">본인 업로드</span>':'<span class="pill p-mute">매니저 대리</span>';
+const statusPill=st=>({practice:'<span class="pill p-mute">연습</span>',submitted:'<span class="pill p-warn">평가 대기</span>',reviewing:'<span class="pill p-warn">평가 중</span>',completed:'<span class="pill p-good">평가 완료</span>'}[st]);
+const kindPill=e=>e.kind==='proxy'?'<span class="pill p-mute">매니저 대리 업로드</span>':`<span class="pill p-mute">본인 제출 · ${e.n}회차</span>`;
 const compPill=st=>({m:'<span class="pill p-good">충족</span>',p:'<span class="pill p-warn">부분</span>',x:'<span class="pill p-bad">누락</span>',v:'<span class="pill p-bad">위반</span>'}[st]);
 const prodState=s=>({live:'<span class="pill p-good">진행 중</span>',ended:'<span class="pill p-mute">종료</span>',soon:'<span class="pill p-info">예정</span>'}[s]);
 function delta(a,b){const d=+(a-b).toFixed(1);if(!d)return '<span class="delta">±0.0</span>';return `<span class="delta ${d>0?'up':'down'}">${d>0?'▲':'▼'} ${Math.abs(d).toFixed(1)}</span>`}
 
-function hbar(rows,opt={}){ // rows:[{name,v,avg}]
+function hbar(rows,opt={}){
  const W=340,L=112,R=16,rowH=26,top=6,H=top+rows.length*rowH+22,sx=v=>L+(W-L-R)*v/10;
  let g='';
  for(let t=0;t<=10;t+=2)g+=`<line class="grid" x1="${sx(t)}" x2="${sx(t)}" y1="${top}" y2="${H-18}"/><text x="${sx(t)}" y="${H-4}" text-anchor="middle">${t}</text>`;
@@ -301,126 +318,145 @@ function hbar(rows,opt={}){ // rows:[{name,v,avg}]
  rows.forEach((r,i)=>{const y=top+i*rowH;
   g+=`<text class="lbl" x="${L-8}" y="${y+16}" text-anchor="end">${esc(r.name)}</text>`;
   g+=`<rect x="${L}" y="${y+6}" width="${Math.max(2,sx(r.v)-L)}" height="13" rx="4" fill="${i===low?'var(--warn)':'var(--accent)'}"/>`;
-  if(r.avg!=null)g+=`<circle cx="${sx(r.avg)}" cy="${y+12.5}" r="4.5" fill="var(--ink)" stroke="var(--surface)" stroke-width="2"/>`;
+  if(r.dot!=null)g+=`<circle cx="${sx(r.dot)}" cy="${y+12.5}" r="4.5" fill="var(--ink)" stroke="var(--surface)" stroke-width="2"/>`;
  });
  return `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(opt.label||'항목별 점수')}">${g}</svg>`;
 }
-function spark(vals){const W=70,H=22,mn=Math.min(...vals)-.5,mx=Math.max(...vals)+.5;const pts=vals.map((v,i)=>[i*(W-6)/(vals.length-1)+3,H-3-(v-mn)/(mx-mn)*(H-6)]);
+function lineChart(pts,opt={}){ // pts:[{x:'1회',v,c}]  v=점수(0-10), c=준수율(0-100)
+ const W=340,H=150,L=28,R=12,T=10,B=26,n=pts.length;const sx=i=>L+(n===1?0:(W-L-R)*i/(n-1));const sy=v=>T+(H-T-B)*(1-v/10);
+ let g='';for(let t=0;t<=10;t+=5)g+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${sy(t)}" y2="${sy(t)}"/><text x="${L-6}" y="${sy(t)+4}" text-anchor="end">${t}</text>`;
+ const line=(key,col,dash)=>`<polyline points="${pts.map((p,i)=>`${sx(i)},${sy(key==='c'?p.c/10:p.v)}`).join(' ')}" fill="none" stroke="${col}" stroke-width="2" ${dash?'stroke-dasharray="4 4"':''}/>`+pts.map((p,i)=>`<circle cx="${sx(i)}" cy="${sy(key==='c'?p.c/10:p.v)}" r="${p.sel&&key==='v'?5.5:3.5}" fill="${col}" stroke="var(--surface)" stroke-width="2"/>`).join('');
+ g+=line('c','var(--good)',true)+line('v','var(--accent)');
+ pts.forEach((p,i)=>g+=`<text x="${sx(i)}" y="${H-6}" text-anchor="middle">${p.x}</text>`);
+ return `<svg class="linechart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="회차별 점수 추이">${g}</svg>`;
+}
+function spark(vals){if(vals.length<2)vals=[vals[0],vals[0]];const W=70,H=22,mn=Math.min(...vals)-.5,mx=Math.max(...vals)+.5;const pts=vals.map((v,i)=>[i*(W-6)/(vals.length-1)+3,H-3-(v-mn)/(mx-mn)*(H-6)]);
  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.6"/><circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="2.6" fill="var(--accent)"/></svg>`}
 
 function evalRow(e,showEmp=true){
- const emp=E(e.emp),pr=P(e.p);
- return `<button class="row" data-act="open:${e.id}" ${e.status==='analyzing'?'disabled':''}>
+ const emp=E(e.emp),pr=P(e.p);const m=mgrTotal(e);
+ return `<button class="row" data-act="open:${e.id}">
   <div class="avatar">${emp.name[0]}</div>
   <div class="main"><div class="t">${showEmp?emp.name+' · ':''}${esc(pr.name)}</div>
   <div class="s">${e.date} · ${e.dur}</div>
-  <div class="chips" style="margin-top:4px">${statusPill(e.status)}${byPill(e.by)}</div></div>
-  <div class="score">${e.status==='analyzing'?'<span class="hint">—</span>':total(e).toFixed(1)}</div></button>`;
+  <div class="chips" style="margin-top:4px">${statusPill(e.status)}${kindPill(e)}</div></div>
+  <div style="text-align:right"><div class="score">${(m??aiTotal(e)).toFixed(1)}</div><div class="hint" style="font-size:11px">${m!=null?'매니저':'AI'}</div></div></button>`;
 }
 
 /* ---------- 화면 ---------- */
 function vLogin(){
  return `<div class="login">
   <div class="brand"><div class="mark">SC</div><b>매장 판매 코칭</b></div>
-  <h1>판매 대화를 올리면<br>교육자료 기준으로 코칭해 드려요</h1>
-  <p>녹음이나 매장 촬영 영상을 올리면 AI가 행사 교육자료 준수 여부와 10개 항목 점수를 정리합니다. 매니저가 검토하고 확정하면 사원에게 공개됩니다.</p>
-  <div class="field"><span>이메일</span><input id="login-email" type="email" value="yujin.jung@example.com" autocomplete="off"></div>
+  <h1>연습하고, 스스로 점검하고,<br>가장 잘한 대화로 평가받으세요</h1>
+  <p>판매 대화를 녹음해 올리면 AI가 행사 교육자료 기준으로 바로 점검해 줍니다. 여러 번 연습한 뒤 가장 잘한 1건을 매니저에게 제출하세요.</p>
+  <div class="field"><span>이메일 또는 사번</span><input id="login-id" value="20231042" autocomplete="off"></div>
   <div class="field"><span>비밀번호</span><input id="login-pw" type="password" value="preview"></div>
-  <div class="hint">미리보기에서는 역할을 골라 들어갑니다.</div>
-  <div class="rolepick">
-   <button class="btn block" data-act="role:manager">매니저로 들어가기 (정유진 · 강남점)</button>
-   <button class="btn ghost block" data-act="role:employee">사원으로 들어가기 (박서준)</button>
-   <button class="btn ghost block" data-act="role:admin">관리자로 들어가기 (본사 교육팀)</button>
-  </div></div>`;
+  <button class="btn block" data-act="role:employee">로그인</button>
+  <div class="hint">사원은 사번으로, 매니저와 관리자는 이메일로 로그인합니다. 비밀번호를 잊은 사원은 담당 매니저에게 초기화를 요청하세요.</div>
+  <div class="note">미리보기: 다른 역할은 여기서 바로 볼 수 있어요.
+   <div class="btns" style="margin-top:8px"><button class="btn ghost" data-act="role:manager">매니저 화면</button><button class="btn ghost" data-act="role:admin">관리자 화면</button></div></div>
+ </div>`;
 }
 
 function vDash(){
- const done=EVALS.filter(e=>e.status!=='analyzing');
- const avgT=(done.reduce((a,e)=>a+total(e),0)/done.length).toFixed(1);
- const avgC=Math.round(done.reduce((a,e)=>a+compRate(e),0)/done.length);
- const pend=EVALS.filter(e=>e.status==='draft').length;
+ const vis=EVALS.filter(managerVisible);
+ const wait=vis.filter(e=>e.status==='submitted'||e.status==='reviewing').length;
  const lowest=TEAM_AVG.indexOf(Math.min(...TEAM_AVG));
- const rows=CRIT.map((n,i)=>({name:n,v:TEAM_AVG[i]}));
  return `<div class="stack">
   <div class="tiles">
-   <div class="tile"><div class="k">이번 달 평가</div><div class="v">12<small> 건</small></div><div class="delta up">▲ 4 지난달 대비</div></div>
-   <div class="tile"><div class="k">팀 평균 점수</div><div class="v">${avgT}<small> / 10</small></div><div class="delta up">▲ 0.6</div></div>
-   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${avgC}<small> %</small></div><div class="delta up">▲ 9%p</div></div>
-   <div class="tile"><div class="k">검토 대기</div><div class="v">${pend}<small> 건</small></div><button class="btn ghost" style="padding:4px 10px;font-size:12.5px;margin-top:4px" data-act="tab:review">검토하기</button></div>
+   <div class="tile"><div class="k">평가 대기</div><div class="v">${wait}<small> 건</small></div><button class="btn ghost" style="padding:4px 10px;font-size:12.5px;margin-top:4px" data-act="tab:review">평가하기</button></div>
+   <div class="tile"><div class="k">이번 달 팀 연습</div><div class="v">37<small> 회</small></div><div class="delta up">▲ 15 지난달 대비</div></div>
+   <div class="tile"><div class="k">팀 평균 (매니저 평가)</div><div class="v">7.6<small> / 10</small></div><div class="delta up">▲ 0.5</div></div>
+   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">78<small> %</small></div><div class="delta up">▲ 9%p</div></div>
   </div>
+  <div class="panel"><h3>사원별 연습 현황</h3><div class="tbl"><table><thead><tr><th>사원</th><th class="r">연습</th><th class="r">최근 AI</th><th>추이</th><th>제출</th></tr></thead><tbody>
+   ${[['m1',8,[5.3,6.0,6.9,7.4],'평가 대기'],['m2',5,[7.8,8.2],'완료'],['m3',2,[5.6],'대리 업로드'],['m4',3,[6.1,6.6,7.0],'평가 대기']].map(([id,n,h,st])=>`<tr><td><b>${E(id).name}</b></td><td class="r num">${n}회</td><td class="r num">${h.at(-1).toFixed(1)}</td><td>${spark(h)}</td><td>${st==='완료'?'<span class="pill p-good">완료</span>':st==='평가 대기'?'<span class="pill p-warn">평가 대기</span>':'<span class="pill p-mute">대리</span>'}</td></tr>`).join('')}
+   </tbody></table></div><div class="hint" style="margin-top:6px">연습 횟수와 AI 점수 추이만 보입니다. 사원이 제출하지 않은 연습 내용은 매니저에게 공개되지 않습니다.</div></div>
   <div class="panel"><h3>항목별 팀 평균</h3>
-   ${hbar(rows,{lowest,label:'항목별 팀 평균 점수'})}
-   <div class="legend"><span><i class="sw"></i>팀 평균</span><span><i class="sw low"></i>코칭 우선 항목: ${CRIT[lowest]}</span></div>
-  </div>
+   ${hbar(CRIT.map((n,i)=>({name:n,v:TEAM_AVG[i]})),{lowest,label:'항목별 팀 평균 점수'})}
+   <div class="legend"><span><i class="sw"></i>팀 평균</span><span><i class="sw low"></i>코칭 우선 항목: ${CRIT[lowest]}</span></div></div>
   <div class="panel"><h3>자주 놓치는 교육 내용 <span class="hint" style="font-weight:400">· 하이드라 수분크림 1+1</span></h3>
    <div class="stack" style="gap:10px">
     ${[['묶음 제안 콜멘트',58],['클로징 샘플 키트 멘트',46],['세라마이드 3종 설명',39]].map(([t,v])=>`<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${t}</span><span class="num">누락 ${v}%</span></div><div class="bar" style="margin-top:4px"><i style="width:${v}%;background:var(--bad)"></i></div></div>`).join('')}
    </div></div>
-  <div class="sec-title">최근 평가</div>
-  <div class="list">${EVALS.slice(0,4).map(e=>evalRow(e)).join('')}</div>
  </div>`;
 }
 
 function vReview(){
- const d=EVALS.filter(e=>e.status==='draft'||e.status==='analyzing');
+ const vis=EVALS.filter(managerVisible);const wait=vis.filter(e=>e.status!=='completed'),done=vis.filter(e=>e.status==='completed');
  return `<div class="stack">
-  <div class="note">AI가 작성한 초안입니다. 점수와 코멘트를 확인·수정한 뒤 확정하면 사원에게 공개됩니다.</div>
-  <div class="list">${d.map(e=>evalRow(e)).join('')}</div></div>`;
+  <div class="note">사원이 연습 중 가장 잘했다고 고른 대화와 매니저가 대리로 올린 대화입니다. AI 결과를 참고해 매니저 점수와 코멘트를 남기면 사원에게 공개됩니다.</div>
+  <div class="sec-title">평가 대기 ${wait.length}</div><div class="list">${wait.map(e=>evalRow(e)).join('')}</div>
+  <div class="sec-title">평가 완료</div><div class="list">${done.map(e=>evalRow(e)).join('')}</div></div>`;
 }
 
 function vTeam(){
- return `<div class="stack"><div class="panel tbl"><table>
-  <thead><tr><th>사원</th><th class="r">최근 점수</th><th class="r">준수율</th><th>추이</th></tr></thead><tbody>
-  ${EMPS.map(m=>{const ev=byEmp(m.id);const last=ev[0];const hist=ev.slice().reverse().map(total);if(hist.length<2)hist.unshift(last?last.prev:6);
-   return `<tr><td><b>${m.name}</b></td><td class="r num">${last?total(last).toFixed(1):'—'}</td><td class="r num">${last?compRate(last)+'%':'—'}</td><td>${spark(hist)}</td></tr>`}).join('')}
-  </tbody></table></div>
-  <button class="btn ghost block">+ 사원 추가 / 로그인 초대 보내기</button>
-  <div class="sec-title">사원별 평가 기록</div>
-  <div class="list">${EVALS.filter(e=>e.status!=='analyzing').map(e=>evalRow(e)).join('')}</div></div>`;
+ return `<div class="stack"><div class="list">${EMPS.map(m=>`<div class="row"><div class="avatar">${m.name[0]}</div><div class="main"><div class="t">${m.name}</div><div class="s">사번 ${m.no} · ${m.store}</div></div><button class="btn ghost" style="padding:6px 10px;font-size:12.5px">비밀번호 초기화</button></div>`).join('')}</div>
+  <div class="panel"><h3>사원 등록</h3><div class="stack" style="gap:10px">
+   <div class="field"><span>이름</span><input id="new-name" placeholder="예: 한소희"></div>
+   <div class="field"><span>사번</span><input id="new-no" placeholder="예: 20240912" inputmode="numeric"></div>
+   <button class="btn block">등록하고 초기 비밀번호 받기</button>
+   <div class="hint">초기 비밀번호를 사원에게 직접 알려 주세요. 사원은 첫 로그인 때 새 비밀번호로 바꿉니다.</div></div></div></div>`;
 }
 
+/* 평가 상세: 역할/상태에 따라 AI 결과 + 매니저 평가 */
 function vEval(){
  const e=EVALS.find(x=>x.id===S.view.id);const emp=E(e.emp),pr=P(e.p);
- const t=total(e),cr=compRate(e);const isMgr=S.role!=='employee';const canEdit=isMgr&&e.status==='draft';
+ const isMgr=S.role!=='employee';const t=aiTotal(e),cr=compRate(e);const m=mgrTotal(e);
  const counts={m:0,p:0,x:0,v:0};e.comp.forEach(c=>counts[c.st]++);
+ const prevAttempt=EVALS.filter(x=>x.emp===e.emp&&x.p===e.p&&x.kind==='practice'&&x.n===e.n-1)[0];
+ const canReview=isMgr&&(e.status==='submitted'||e.status==='reviewing');
+ const showMgr=e.mgr&&(isMgr||e.status==='completed');
  const low=e.items.reduce((a,b,i,arr)=>b.score<arr[a].score?i:a,0);
- return `<div class="stack">
-  <div><div style="font-size:22px;font-weight:700">${emp.name}</div>
+ let top=`<div><div style="font-size:22px;font-weight:700">${isMgr?emp.name:`${e.kind==='practice'?e.n+'회차 연습':'평가'}`}</div>
    <div class="meta"><span>${esc(pr.name)}</span><span>${e.date}</span><span>대화 ${e.dur}</span></div>
-   <div class="chips" style="margin-top:6px">${statusPill(e.status)}${byPill(e.by)}</div></div>
-  ${canEdit?`<div class="banner warn">AI 초안입니다. 점수와 코멘트를 확인한 뒤 확정해 주세요. 확정 전에는 사원에게 보이지 않습니다.</div>`:''}
-  ${S.toast?`<div class="banner good">${S.toast}</div>`:''}
-  <div class="tiles">
-   <div class="tile"><div class="k">종합 점수</div><div class="v" id="total-v">${t.toFixed(1)}<small> / 10</small></div>${delta(t,e.prev)} <span class="hint">지난 평가 대비</span></div>
-   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${cr}<small> %</small></div><span class="hint">충족 ${counts.m} · 부분 ${counts.p} · 누락 ${counts.x}${counts.v?` · 위반 ${counts.v}`:''}</span></div>
-  </div>
-
-  <div class="panel"><h3>교육자료 준수 체크</h3>
+   <div class="chips" style="margin-top:6px">${statusPill(e.status)}${isMgr?kindPill(e):''}</div></div>`;
+ if(S.toast)top+=`<div class="banner good">${S.toast}</div>`;
+ if(!isMgr&&e.status==='practice')top+=`<div class="banner info">연습 결과는 나만 볼 수 있어요. 가장 잘한 회차를 골라 ‘연습 기록’에서 매니저에게 제출하세요.</div>`;
+ if(e.note&&(isMgr||e.status!=='practice'))top+=`<div class="panel"><span class="lab b">사원 메모</span>${esc(e.note)}</div>`;
+ const tiles=`<div class="tiles">
+   ${showMgr?`<div class="tile"><div class="k">매니저 평가</div><div class="v">${m.toFixed(1)}<small> / 10</small></div><span class="hint">AI ${t.toFixed(1)}</span></div>`
+     :`<div class="tile"><div class="k">AI 종합 점수</div><div class="v">${t.toFixed(1)}<small> / 10</small></div>${prevAttempt?delta(t,aiTotal(prevAttempt))+' <span class="hint">이전 회차 대비</span>':''}</div>`}
+   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${cr}<small> %</small></div><span class="hint">충족 ${counts.m} · 부분 ${counts.p} · 누락 ${counts.x}${counts.v?` · 위반 ${counts.v}`:''}</span></div></div>`;
+ const mgrPanel=showMgr?`<div class="panel"><h3>매니저 평가 <span class="hint" style="font-weight:400">· 정유진 · ${e.mgr.date}</span></h3>
+   <p style="margin:0 0 10px">${esc(e.mgr.comment)}</p>
+   <span class="lab b">코칭 과제</span><ol class="tasks">${e.mgr.tasks.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>
+   <div class="panel"><h3>항목별 점수: 매니저 vs AI</h3>
+   ${hbar(e.items.map((it,i)=>({name:it.name,v:e.mgr.s[i],dot:it.score})),{label:'매니저 점수와 AI 점수'})}
+   <div class="legend"><span><i class="sw"></i>매니저 점수</span><span><i class="sw ai"></i>AI 점수</span></div></div>`:'';
+ const reviewPanel=canReview?vReviewForm(e):'';
+ const compPanel=`<div class="panel"><h3>교육자료 준수 체크 <span class="hint" style="font-weight:400">· AI</span></h3>
    <div class="hint" style="margin:-6px 0 8px">기준: ${pr.materials.map(esc).join(', ')}</div>
    ${e.comp.map(c=>`<div class="check"><div>${c.type==='금지 표현'&&c.st==='m'?'<span class="pill p-good">위반 없음</span>':compPill(c.st)}</div>
      <div class="req">${esc(c.req)}</div><div class="type">${c.type}</div>
-     <div class="ev"><span class="ts">${c.ev[0]}</span> ${esc(c.ev[1])}</div></div>`).join('')}
-  </div>
-
-  <div class="panel"><h3>항목별 점수</h3>
-   ${hbar(e.items.map(i=>({name:i.name,v:i.score,avg:i.avg})),{lowest:low})}
-   <div class="legend"><span><i class="sw"></i>이번 점수</span><span><i class="sw dot"></i>팀 평균</span><span><i class="sw low"></i>가장 낮은 항목</span></div>
-  </div>
-
-  <div class="panel"><h3>항목별 근거와 개선점</h3>
-   ${e.items.map((it,i)=>{const open=S.open[i];const above=it.score>it.avg;
+     <div class="ev"><span class="ts">${c.ev[0]}</span> ${esc(c.ev[1])}</div></div>`).join('')}</div>`;
+ const aiChart=showMgr?'':`<div class="panel"><h3>항목별 AI 점수</h3>
+   ${hbar(e.items.map(i=>({name:i.name,v:i.score,dot:i.avg})),{lowest:low})}
+   <div class="legend"><span><i class="sw"></i>AI 점수</span><span><i class="sw dot"></i>팀 평균</span><span><i class="sw low"></i>가장 낮은 항목</span></div></div>`;
+ const itemsPanel=`<div class="panel"><h3>항목별 근거와 개선점 <span class="hint" style="font-weight:400">· AI</span></h3>
+   ${e.items.map((it,i)=>{const open=S.open[i];
     return `<div class="item"><button class="item-h" data-act="item:${i}" aria-expanded="${!!open}">
-     <span class="n">${it.name}</span>${above?'<span class="pill p-good">평균 이상</span>':'<span class="pill p-mute">평균 이하</span>'}
-     ${S.edit?`<input class="scorebox" type="number" min="0" max="10" step="1" id="sc-${i}" value="${it.score}" data-score="${i}" aria-label="${it.name} 점수">`:`<span class="score" style="font-size:16px">${it.score}</span>`}
+     <span class="n">${it.name}</span>${it.score>it.avg?'<span class="pill p-good">평균 이상</span>':'<span class="pill p-mute">평균 이하</span>'}
+     <span class="score" style="font-size:16px">${it.score}</span>
      <span style="transform:rotate(${open?180:0}deg);display:inline-flex">${ic('chev',18)}</span></button>
-     ${open?`<div class="item-b"><p><span class="lab b">평가 근거</span>${esc(it.basis)}. ${esc(it.basis2)}.</p><p><span class="lab m">개선할 점</span>${esc(it.improve)}</p></div>`:''}</div>`}).join('')}
-  </div>
+     ${open?`<div class="item-b"><p><span class="lab b">평가 근거</span>${esc(it.basis)}. ${esc(it.basis2)}.</p><p><span class="lab m">개선할 점</span>${esc(it.improve)}</p></div>`:''}</div>`}).join('')}</div>`;
+ const aiSummary=`<div class="panel"><h3>AI 총평과 연습 과제</h3><p style="margin:0 0 10px">${esc(e.summary)}</p><ol class="tasks">${e.tasks.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>`;
+ const src=`<div class="panel"><h3>원본</h3><div class="meta"><span>${esc(e.src)}</span><span>원본 ${e.orig} → 전송 ${e.out}</span></div>
+   <button class="btn ghost" style="margin-top:10px">대화 녹취록 보기 (화자 구분)</button></div>`;
+ const empSubmit=!isMgr&&e.status==='practice'?`<button class="btn block" data-act="hist:${e.p}">연습 기록에서 이 회차 제출하기</button>`:'';
+ return `<div class="stack">${top}${tiles}${mgrPanel}${reviewPanel}${compPanel}${aiChart}${itemsPanel}${aiSummary}${src}${empSubmit}</div>`;
+}
 
-  <div class="panel"><h3>다음 코칭 과제</h3><ol class="tasks">${e.tasks.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>
-  <div class="panel"><h3>총평</h3><p style="margin:0">${esc(e.summary)}</p></div>
-  <div class="panel"><h3>원본</h3><div class="meta"><span>${esc(e.src)}</span><span>원본 ${e.orig} → 전송 ${e.comp_}</span></div>
-   <button class="btn ghost" style="margin-top:10px">대화 녹취록 보기</button></div>
-  ${canEdit?`<div class="btns">${S.edit?`<button class="btn ghost" data-act="edit">수정 완료</button>`:`<button class="btn ghost" data-act="edit">점수·코멘트 수정</button>`}<button class="btn" data-act="confirm:${e.id}">확정하고 사원에게 공개</button></div>`:''}
+function vReviewForm(e){
+ const d=S.draft;
+ return `<div class="panel" id="review-form"><h3>매니저 평가 입력</h3>
+  <div class="hint" style="margin:-6px 0 10px">AI 점수를 참고해 매니저 점수를 매겨 주세요. AI와 2점 이상 차이 나면 표시됩니다. AI 점수는 바뀌지 않습니다.</div>
+  <div class="cmp h"><span>항목</span><span style="text-align:center">AI</span><span style="text-align:right">매니저</span></div>
+  ${e.items.map((it,i)=>{const gap=Math.abs(d.s[i]-it.score)>=2;return `<div class="cmp"><span>${it.name}${gap?` <span class="gap" id="gap-${i}">차이 ${Math.abs(d.s[i]-it.score)}</span>`:`<span class="gap" id="gap-${i}"></span>`}</span><span class="ai">${it.score}</span><input class="scorebox" type="number" min="0" max="10" step="1" id="ms-${i}" value="${d.s[i]}" data-ms="${i}" aria-label="${it.name} 매니저 점수"></div>`}).join('')}
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:8px"><b>매니저 종합</b><span class="num" style="font-size:20px" id="ms-total">${avg(d.s).toFixed(1)}</span></div>
+  <div class="field" style="margin-top:12px"><span>총평 (사원에게 보입니다)</span><textarea id="mg-comment" data-mc="1" placeholder="현장에서 본 모습, AI가 놓친 점, 칭찬할 점을 적어 주세요.">${esc(d.comment)}</textarea></div>
+  <div class="field" style="margin-top:10px"><span>코칭 과제 (한 줄에 하나)</span><textarea id="mg-tasks" data-mt="1">${esc(d.tasks)}</textarea></div>
+  <div class="btns" style="margin-top:12px"><button class="btn ghost" data-act="savedraft:${e.id}">임시 저장</button><button class="btn" data-act="complete:${e.id}">평가 완료하고 공개</button></div>
  </div>`;
 }
 
@@ -430,14 +466,15 @@ function vUpload(){
  let body='';
  if(f.phase==='pick'){
   if(f.step===1){
-   body=`<div class="sec-title">누구의 판매 대화인가요?</div><div class="grid2">${EMPS.map(m=>`<button class="choice" aria-pressed="${f.emp===m.id}" data-act="emp:${m.id}"><div class="avatar">${m.name[0]}</div><div class="main"><div class="t">${m.name}</div><div class="hint">${m.store}</div></div></button>`).join('')}</div>`;
+   body=`<div class="note">매니저가 올린 대화는 연습 단계 없이 바로 매니저 평가로 들어갑니다.</div><div class="sec-title">누구의 판매 대화인가요?</div><div class="grid2">${EMPS.map(m=>`<button class="choice" aria-pressed="${f.emp===m.id}" data-act="emp:${m.id}"><div class="avatar">${m.name[0]}</div><div class="main"><div class="t">${m.name}</div><div class="hint">사번 ${m.no}</div></div></button>`).join('')}</div>`;
   } else if(f.step===2){
-   body=`${isEmp?`<div class="note">사원: <b>${ME.employee.name}</b> (본인)</div>`:`<div class="note">사원: <b>${E(f.emp).name}</b> <button class="btn ghost" style="padding:2px 10px;font-size:12.5px;margin-left:6px" data-act="step:1">변경</button></div>`}
+   const cnt=id=>EVALS.filter(x=>x.emp===ME.employee.id&&x.p===id&&x.kind==='practice').length;
+   body=`${isEmp?`<div class="note">횟수 제한 없이 연습할 수 있어요. 결과는 바로 나에게만 보입니다.</div>`:`<div class="note">사원: <b>${E(f.emp).name}</b> <button class="btn ghost" style="padding:2px 10px;font-size:12.5px;margin-left:6px" data-act="step:1">변경</button></div>`}
     <div class="sec-title">어떤 행사 품목을 판매했나요?</div>
-    <div class="stack" style="gap:8px">${PRODUCTS.filter(p=>p.state!=='soon').map(p=>`<button class="choice" aria-pressed="${f.prod===p.id}" data-act="prod:${p.id}"><div class="main"><div class="t">${esc(p.name)}</div><div class="hint">${p.period} · 교육자료 ${p.materials.length}개 · 체크 항목 ${p.checklist.length}개</div></div>${prodState(p.state)}</button>`).join('')}</div>`;
+    <div class="stack" style="gap:8px">${PRODUCTS.filter(p=>p.state==='live').map(p=>`<button class="choice" aria-pressed="${f.prod===p.id}" data-act="prod:${p.id}"><div class="main"><div class="t">${esc(p.name)}</div><div class="hint">${p.period} · 체크 항목 ${p.checklist.length}개${isEmp?` · 내 연습 ${cnt(p.id)}회`:''}</div></div>${prodState(p.state)}</button>`).join('')}</div>`;
   } else {
    const pr=P(f.prod);
-   body=`<div class="note">사원: <b>${E(f.emp).name}</b>${isEmp?' (본인)':''} · 행사: <b>${esc(pr.name)}</b> <button class="btn ghost" style="padding:2px 10px;font-size:12.5px;margin-left:6px" data-act="step:2">변경</button></div>
+   body=`<div class="note">${isEmp?'':`사원: <b>${E(f.emp).name}</b> · `}행사: <b>${esc(pr.name)}</b> <button class="btn ghost" style="padding:2px 10px;font-size:12.5px;margin-left:6px" data-act="step:2">변경</button></div>
     <div class="drop">${ic('up',28)}<div><b>녹음 또는 동영상 파일을 올려 주세요</b><div class="hint">m4a · mp3 · wav · mp4 · mov 등 · 원본 2GB까지</div></div>
      <label class="btn" for="file-in">파일 선택</label><input id="file-in" type="file" accept="audio/*,video/*" hidden>
      <div class="hint">또는 샘플로 체험해 보기</div>
@@ -447,36 +484,27 @@ function vUpload(){
   }
   const canNext=(f.step===1&&f.emp)||(f.step===2&&f.prod);
   if(f.step<3)body+=`<button class="btn block" data-act="next" ${canNext?'':'disabled'}>다음</button>`;
- } else {
-  body=vProcess();
- }
- return `<div class="stack"><div class="stepper">${step(1,'사원')}${step(2,'행사 품목')}${step(3,'파일 업로드')}</div>${body}</div>`;
+ } else body=vProcess();
+ const steps=isEmp?`<div class="stepper" style="grid-template-columns:repeat(2,1fr)">${step(2,'행사 품목')}${step(3,'파일 업로드')}</div>`:`<div class="stepper">${step(1,'사원')}${step(2,'행사 품목')}${step(3,'파일 업로드')}</div>`;
+ return `<div class="stack">${steps}${body}</div>`;
 }
 
 const STAGES_PRE={video:['동영상에서 음성 추출','음성 인식용으로 압축'],audio:['음성 인식용으로 압축']};
-const STAGES_POST=['서버로 업로드','말소리를 텍스트로 변환','교육자료 기준으로 AI 평가'];
+const STAGES_POST=['서버로 업로드','말소리를 텍스트로 변환 (화자 구분)','교육자료 기준으로 AI 평가'];
 function vProcess(){
- const f=S.flow,file=f.file;const pre=STAGES_PRE[file.kind];const all=pre.concat(f.phase==='ready'?[]:STAGES_POST);
- const stagesShown=f.phase==='ready'||f.phase==='compress'?pre:all;
- const st=i=>i<f.stage?'done':i===f.stage&&f.phase!=='ready'&&f.phase!=='done'?'run':'wait';
+ const f=S.flow,file=f.file;const pre=STAGES_PRE[file.kind];
+ const shown=f.phase==='send'||f.phase==='done'?pre.concat(STAGES_POST):pre;
+ const fin=f.phase==='ready'||f.phase==='done';
  let out=`<div class="panel"><div class="meta" style="margin-bottom:10px"><span>${ic('file',16)} ${esc(file.name)}</span><span>${file.kind==='video'?'동영상':'음성'} · 원본 ${fmt(file.size)}</span></div>
-  <div class="stages">${stagesShown.map((s,i)=>`<div class="stage ${f.phase==='ready'||f.phase==='done'?'done':st(i)}"><span class="ic">${(f.phase==='ready'||f.phase==='done'||i<f.stage)?'✓':''}</span><span>${s}</span><span class="num hint">${i===f.stage&&f.phase!=='ready'&&f.phase!=='done'?f.pct+'%':''}</span></div>`).join('')}</div>
+  <div class="stages">${shown.map((s,i)=>{const done=fin||i<f.stage,run=!fin&&i===f.stage;return `<div class="stage ${done?'done':run?'run':'wait'}"><span class="ic">${done?'✓':''}</span><span>${s}</span><span class="num hint">${run?f.pct+'%':''}</span></div>`}).join('')}</div>
   ${f.phase==='compress'||f.phase==='send'?`<div class="bar" style="margin-top:12px"><i style="width:${f.pct}%"></i></div>`:''}</div>`;
- if(f.phase!=='compress'){
-  out+=`<div class="panel"><div class="sizes"><div><div class="k">원본</div><div class="v">${fmt(file.size)}</div></div><div class="hint">→</div><div><div class="k">보낼 음성</div><div class="v" style="color:var(--good)">${fmt(file.out)}</div></div></div>
+ if(f.phase!=='compress')out+=`<div class="panel"><div class="sizes"><div><div class="k">원본</div><div class="v">${fmt(file.size)}</div></div><div class="hint">→</div><div><div class="k">보낼 음성</div><div class="v" style="color:var(--good)">${fmt(file.out)}</div></div></div>
    <div class="hint" style="text-align:center;margin-top:6px">${(100-file.out/file.size*100).toFixed(1)}% 줄었어요 · 모노 16kHz · 약 ${file.min}분</div></div>`;
- }
- if(f.phase==='ready'){
-  out+=`<div class="panel"><h3 style="font-size:14px">미리듣기</h3>${wave()}<div class="hint">목소리가 잘 들리는지 확인한 뒤 보내 주세요.</div></div>
-   <button class="btn block" data-act="send">업로드하고 AI 평가 시작</button>`;
- }
- if(f.phase==='done'){
-  out+=S.role==='employee'
-   ?`<div class="banner good">업로드를 마쳤어요. AI 초안이 담당 매니저(정유진)에게 전달되었습니다. 매니저가 확정하면 ‘내 결과’에서 볼 수 있어요.</div>
-     <div class="panel"><div class="stages">${['업로드','AI 분석','매니저 검토','결과 공개'].map((s,i)=>`<div class="stage ${i<2?'done':'wait'}"><span class="ic">${i<2?'✓':''}</span><span>${s}</span><span></span></div>`).join('')}</div></div>
-     <button class="btn ghost block" data-act="tab:mine">내 결과로 가기</button>`
-   :`<div class="banner good">AI 초안이 준비되었습니다. 검토하고 확정해 주세요.</div><button class="btn block" data-act="open:e1">초안 검토하기</button>`;
- }
+ if(f.phase==='ready')out+=`<div class="panel"><h3 style="font-size:14px">미리듣기</h3>${wave()}<div class="hint">목소리가 잘 들리는지 확인한 뒤 보내 주세요.</div></div>
+   <button class="btn block" data-act="send">업로드하고 AI 점검 시작</button>`;
+ if(f.phase==='done')out+=S.role==='employee'
+   ?`<div class="banner good">AI 점검이 끝났어요. 이번이 이 행사의 5회차 연습입니다.</div><button class="btn block" data-act="open:a5">결과 보기</button>`
+   :`<div class="banner good">AI 결과가 준비되었습니다. 매니저 평가를 입력해 주세요.</div><button class="btn block" data-act="open:c2">평가하러 가기</button>`;
  return out;
 }
 function wave(){let g='';for(let i=0;i<64;i++){const h=4+Math.abs(Math.sin(i*1.7)*Math.cos(i*.31))*26;g+=`<rect x="${i*5}" y="${20-h/2}" width="3" height="${h}" rx="1.5" fill="var(--accent)" opacity="${i<20?1:.35}"/>`}
@@ -484,12 +512,9 @@ function wave(){let g='';for(let i=0;i<64;i++){const h=4+Math.abs(Math.sin(i*1.7
 function fmt(b){const mb=b/1048576;return mb>=1024?(mb/1024).toFixed(2)+'GB':mb>=10?Math.round(mb)+'MB':mb.toFixed(1)+'MB'}
 
 function startFile(name,size,kind){
- const min=kind==='video'?Math.max(1,Math.round(size/1048576/57)):Math.max(1,Math.round(size/1048576/1));
- const out=min*60*32000/8*1.02;
- S.flow.file={name,size,kind,min,out};
- const f=S.flow;
- if(size<=12*1048576&&kind==='audio'){f.file.out=Math.min(size,out);}
- f.phase='compress';f.stage=0;f.pct=0;render();
+ const min=kind==='video'?Math.max(1,Math.round(size/1048576/57)):Math.max(1,Math.round(size/1048576));
+ S.flow.file={name,size,kind,min,out:Math.min(size,min*60*32000/8*1.02)};
+ const f=S.flow;f.phase='compress';f.stage=0;f.pct=0;render();
  const pre=STAGES_PRE[kind].length;const speed=matchMedia('(prefers-reduced-motion:reduce)').matches?34:9;
  clearInterval(S.timer);
  S.timer=setInterval(()=>{f.pct=Math.min(100,f.pct+speed);if(f.pct>=100){f.stage++;f.pct=0;if(f.stage>=pre){clearInterval(S.timer);f.phase='ready';}}render()},180);
@@ -497,20 +522,48 @@ function startFile(name,size,kind){
 function send(){
  const f=S.flow;const pre=STAGES_PRE[f.file.kind].length;f.phase='send';f.stage=pre;f.pct=0;render();
  clearInterval(S.timer);
- S.timer=setInterval(()=>{f.pct=Math.min(100,f.pct+12);if(f.pct>=100){f.stage++;f.pct=0;if(f.stage>=pre+STAGES_POST.length){clearInterval(S.timer);f.phase='done';}}render()},160);
+ S.timer=setInterval(()=>{f.pct=Math.min(100,f.pct+12);if(f.pct>=100){f.stage++;f.pct=0;if(f.stage>=pre+STAGES_POST.length){clearInterval(S.timer);f.phase='done';
+   if(S.role==='employee'&&!EVALS.find(x=>x.id==='a5'))EVALS.unshift(mkEval({id:'a5',emp:'m1',p:f.prod==='p2'?'p2':'p1',n:f.prod==='p2'?3:5,kind:'practice',status:'practice',date:'방금 전',s:[9,8,7,9,8,8,7,7,8,7],dur:f.file.min+'분',src:f.file.name,orig:fmt(f.file.size),out:fmt(f.file.out),pat:['m','m','m','m','m','p','m','m'],summary:'지금까지 연습 중 가장 좋은 결과입니다. 묶음 제안과 오프닝을 교육자료 문구대로 했습니다. 클로징의 샘플 키트 혜택만 구매 조건과 연결하면 됩니다.',tasks:['샘플 키트 혜택을 “오늘 구매하시면”과 붙여 말하기']}));
+ }}render()},160);
 }
 
-function vMine(){
- const mine=byEmp(ME.employee.id);const conf=mine.filter(e=>e.status==='confirmed');const pending=mine.filter(e=>e.status==='draft');
- const last=conf[0];
+/* 사원: 연습 기록 */
+function vHistory(){
+ const me=ME.employee.id;const prods=PRODUCTS.filter(p=>EVALS.some(e=>e.emp===me&&e.p===p.id));
+ const pid=S.histProd;const pr=P(pid);
+ const att=EVALS.filter(e=>e.emp===me&&e.p===pid&&e.kind==='practice').sort((a,b)=>a.n-b.n);
+ const sub=att.find(e=>e.status!=='practice');const locked=sub&&sub.status!=='submitted';
+ if(S.pick==null)S.pick=sub?sub.id:null;
+ const best=att.reduce((a,b)=>aiTotal(b)>aiTotal(a)?b:a,att[0]);
  return `<div class="stack">
-  ${pending.length?`<div class="banner info">매니저 검토 중인 평가가 ${pending.length}건 있어요. 확정되면 여기에 표시됩니다.</div>`:''}
-  <div class="tiles"><div class="tile"><div class="k">최근 확정 점수</div><div class="v">${total(last).toFixed(1)}<small> / 10</small></div>${delta(total(last),last.prev)}</div>
-   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${compRate(last)}<small> %</small></div><span class="hint">${esc(P(last.p).name)}</span></div></div>
-  <div class="panel"><h3>이번 주 코칭 과제</h3><ol class="tasks">${last.tasks.concat(['“생각해 볼게요”에 대한 클로징 멘트 2가지 외우기']).map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>
-  <div class="sec-title">내 평가 기록</div>
-  <div class="list">${conf.map(e=>evalRow(e,false)).join('')}${pending.map(e=>`<div class="row"><div class="avatar">${E(e.emp).name[0]}</div><div class="main"><div class="t">${esc(P(e.p).name)}</div><div class="s">${e.date}</div><div class="chips" style="margin-top:4px"><span class="pill p-warn">매니저 검토 중</span>${byPill(e.by)}</div></div></div>`).join('')}</div>
+  <div class="chips">${prods.map(p=>`<button class="pill ${p.id===pid?'p-info':'p-mute'}" style="border:0;padding:6px 12px;font-size:13px" data-act="hp:${p.id}">${esc(p.name)}</button>`).join('')}</div>
+  <div class="tiles"><div class="tile"><div class="k">연습 횟수</div><div class="v">${att.length}<small> 회</small></div></div>
+   <div class="tile"><div class="k">AI 최고 점수</div><div class="v">${aiTotal(best).toFixed(1)}</div><span class="hint">${best.n}회차 · 준수율 ${compRate(best)}%</span></div></div>
+  <div class="panel"><h3>회차별 추이</h3>${lineChart(att.map(e=>({x:e.n+'회',v:aiTotal(e),c:compRate(e),sel:e.id===S.pick})))}
+   <div class="legend"><span><i class="sw"></i>AI 종합 점수</span><span><i class="sw" style="background:var(--good)"></i>교육자료 준수율 (점선, 10=100%)</span></div></div>
+  <div class="sec-title">매니저에게 낼 대표 1건 고르기</div>
+  ${locked?`<div class="banner good">${sub.n}회차를 제출했고 매니저 평가가 ${sub.status==='completed'?'끝났어요. ‘받은 평가’에서 확인하세요.':'진행 중이라 바꿀 수 없어요.'}</div>`
+   :sub?`<div class="banner warn">${sub.n}회차를 제출했어요. 매니저가 평가를 시작하기 전까지는 다른 회차로 바꿀 수 있어요.</div>`:''}
+  <div class="list">${att.slice().reverse().map(e=>`<div class="attempt" style="cursor:default" aria-pressed="${S.pick===e.id}">
+    <button class="radio" style="background:none" data-act="pick:${e.id}" ${locked?'disabled':''} aria-label="${e.n}회차 선택"></button>
+    <button style="border:0;background:none;text-align:left;padding:0" data-act="open:${e.id}"><div class="t" style="font-weight:600">${e.n}회차 ${e.id===best.id?'<span class="pill p-info">최고점</span>':''} ${e.status!=='practice'?statusPill(e.status):''}</div><div class="hint">${e.date} · 준수율 ${compRate(e)}%</div></button>
+    <div class="score">${aiTotal(e).toFixed(1)}</div></div>`).join('')}</div>
+  ${locked?'':`<div class="field"><span>매니저에게 한마디 (선택)</span><textarea id="self-note" placeholder="이 회차를 고른 이유나 더 연습 중인 부분을 적어 주세요.">${esc(sub?sub.note:'')}</textarea></div>
+   <button class="btn block" data-act="submit" ${S.pick?'':'disabled'}>${S.pick?`${EVALS.find(x=>x.id===S.pick).n}회차를 매니저에게 ${sub&&sub.id!==S.pick?'다시 ':''}제출`:'회차를 골라 주세요'}</button>`}
+  ${S.toast?`<div class="banner good">${S.toast}</div>`:''}
  </div>`;
+}
+
+function vResults(){
+ const mine=EVALS.filter(e=>e.emp===ME.employee.id&&e.status!=='practice');
+ const done=mine.filter(e=>e.status==='completed'),wait=mine.filter(e=>e.status!=='completed');
+ const last=done[0];
+ return `<div class="stack">
+  ${wait.map(e=>`<div class="banner info">${esc(P(e.p).name)} ${e.n}회차를 제출했어요. 매니저 평가를 기다리는 중입니다.</div>`).join('')}
+  ${last?`<div class="tiles"><div class="tile"><div class="k">최근 매니저 평가</div><div class="v">${mgrTotal(last).toFixed(1)}<small> / 10</small></div><span class="hint">AI ${aiTotal(last).toFixed(1)}</span></div>
+   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${compRate(last)}<small> %</small></div><span class="hint">${esc(P(last.p).name)}</span></div></div>
+  <div class="panel"><h3>매니저 코칭 과제</h3><ol class="tasks">${last.mgr.tasks.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>`:''}
+  <div class="sec-title">받은 평가</div><div class="list">${done.map(e=>evalRow(e,false)).join('')}</div></div>`;
 }
 
 function vStudy(){
@@ -522,13 +575,13 @@ function vStudy(){
 }
 
 function vAdash(){
- const stores=[['강남점','정유진',4,7.3,74,5],['홍대점','한지우',6,6.8,69,2],['잠실점','윤서아',5,7.6,81,0],['판교점','오태민',3,6.2,58,4]];
+ const stores=[['강남점','정유진',4,7.6,78,2],['홍대점','한지우',6,6.8,69,3],['잠실점','윤서아',5,7.9,81,0],['판교점','오태민',3,6.2,58,4]];
  return `<div class="stack">
-  <div class="tiles"><div class="tile"><div class="k">이번 달 전체 평가</div><div class="v">48<small> 건</small></div></div><div class="tile"><div class="k">전체 준수율</div><div class="v">71<small> %</small></div></div></div>
-  <div class="panel tbl"><h3>매장별 현황</h3><table><thead><tr><th>매장</th><th>매니저</th><th class="r">사원</th><th class="r">평균</th><th class="r">준수율</th><th class="r">검토 대기</th></tr></thead><tbody>
+  <div class="tiles"><div class="tile"><div class="k">이번 달 전체 연습</div><div class="v">164<small> 회</small></div></div><div class="tile"><div class="k">매니저 평가 완료</div><div class="v">31<small> 건</small></div></div></div>
+  <div class="panel"><h3>매장별 현황</h3><div class="tbl"><table><thead><tr><th>매장</th><th>매니저</th><th class="r">사원</th><th class="r">평균</th><th class="r">준수율</th><th class="r">평가 대기</th></tr></thead><tbody>
   ${stores.map(s=>`<tr><td><b>${s[0]}</b></td><td>${s[1]}</td><td class="r num">${s[2]}</td><td class="r num">${s[3].toFixed(1)}</td><td class="r num">${s[4]}%</td><td class="r">${s[5]?`<span class="pill p-warn">${s[5]}</span>`:'<span class="hint">0</span>'}</td></tr>`).join('')}
-  </tbody></table></div>
-  <div class="panel"><h3>행사별 교육 준수율</h3>${hbar([{name:'수분크림 1+1',v:6.4},{name:'비타C 기획세트',v:7.8},{name:'선크림 특가',v:8.3}],{label:'행사별 준수율(10=100%)'})}<div class="hint">막대 10 = 준수율 100%</div></div>
+  </tbody></table></div></div>
+  <div class="panel"><h3>매니저 등록</h3><div class="stack" style="gap:10px"><div class="field"><span>이름</span><input id="mgr-name" placeholder="예: 한지우"></div><div class="field"><span>매장</span><input id="mgr-store" placeholder="예: 홍대점"></div><div class="field"><span>이메일</span><input id="mgr-email" type="email" placeholder="manager@company.com"></div><button class="btn block">초대 메일 보내기</button><div class="hint">매니저는 메일의 링크에서 비밀번호를 정한 뒤 이메일로 로그인합니다.</div></div></div>
  </div>`;
 }
 
@@ -542,57 +595,66 @@ function vEvents(){
     <div class="chips">${p.materials.map(m=>`<span class="pill p-info">${ic('file',14)} ${esc(m)}</span>`).join('')||'<span class="hint">아직 교육자료가 없어요</span>'}</div>
     <div class="drop" style="padding:14px"><b>교육자료 올리기</b><div class="hint">PDF · 텍스트 · 이미지 · 제품 설명서, 콜멘트 대본</div><button class="btn ghost" data-act="extract:${p.id}">샘플 자료로 체크리스트 추출</button></div>
     ${p.checklist.length?`<div><div style="display:flex;justify-content:space-between;align-items:center"><b>AI가 뽑은 필수 체크리스트</b><span class="hint">수정 가능</span></div>
-     ${p.checklist.map((c,i)=>`<div class="check"><span class="pill ${c[0]==='금지 표현'?'p-bad':c[0]==='필수 콜멘트'?'p-info':'p-mute'}">${c[0]}</span><div class="req" style="font-weight:500">${esc(c[1])}</div></div>`).join('')}
+     ${p.checklist.map(c=>`<div class="check"><span class="pill ${c[0]==='금지 표현'?'p-bad':c[0]==='필수 콜멘트'?'p-info':'p-mute'}">${c[0]}</span><div class="req" style="font-weight:500">${esc(c[1])}</div></div>`).join('')}
      <button class="btn ghost block" style="margin-top:8px">+ 항목 직접 추가</button></div>`:''}
    </div>`:''}</div>`}).join('')}</div>`;
 }
 
 function vCriteria(){
- return `<div class="stack"><div class="note">모든 평가에 공통으로 쓰는 항목입니다. 가중치를 바꾸면 종합 점수 계산에 반영됩니다.</div>
-  <div class="list">${CRIT.map((c,i)=>`<div class="row"><span class="num hint" style="width:20px">${i+1}</span><div class="main"><div class="t">${c}</div><div class="s">${esc(BASIS[c][0]).slice(0,34)}… 같은 행동을 봅니다</div></div><span class="pill p-mute num">가중치 ${[1.2,1,1.2,0.8,0.8,1,1.2,1,0.6,1.2][i]}</span></div>`).join('')}</div>
+ return `<div class="stack"><div class="note">모든 평가에 공통으로 쓰는 항목입니다. AI와 매니저가 같은 항목으로 점수를 매깁니다. 가중치는 종합 점수 계산에 반영됩니다.</div>
+  <div class="list">${CRIT.map((c,i)=>`<div class="row"><span class="num hint" style="width:20px">${i+1}</span><div class="main"><div class="t">${c}</div></div><span class="pill p-mute num">가중치 ${[1.2,1,1.2,0.8,0.8,1,1.2,1,0.6,1.2][i]}</span></div>`).join('')}</div>
   <button class="btn ghost block">+ 평가 항목 추가</button></div>`;
 }
 
 /* ---------- 렌더 ---------- */
-const TITLES={dash:'팀 현황',upload:'판매 대화 올리기',review:'검토 대기',team:'사원',mine:'내 결과',study:'교육자료',adash:'전체 현황',events:'행사 품목 · 교육자료',criteria:'평가 항목'};
+const TITLES={dash:'팀 현황',upload:'대리 업로드',review:'제출된 대화',team:'사원 관리',practice:'연습하기',history:'내 연습 기록',results:'받은 평가',study:'교육자료',adash:'전체 현황',events:'행사 품목 · 교육자료',criteria:'평가 항목'};
 function render(){
  document.getElementById('roles').innerHTML=['manager','employee','admin'].map(r=>`<button data-act="role:${r}" aria-pressed="${S.role===r}">${ROLE_NAME[r]}</button>`).join('');
  const app=document.getElementById('app'),tabs=document.getElementById('tabs');
  if(!S.role){app.innerHTML=vLogin();tabs.hidden=true;return}
  tabs.hidden=false;
- const pend=EVALS.filter(e=>e.status==='draft').length;
- document.getElementById('tabs-in').innerHTML=TABS[S.role].map(([k,l,i])=>`<button data-act="tab:${k}" aria-current="${S.tab===k&&!S.view?'page':'false'}">${ic(i)}${l}${k==='review'&&pend?`<span class="dot">${pend}</span>`:''}</button>`).join('');
+ const wait=EVALS.filter(e=>managerVisible(e)&&(e.status==='submitted'||e.status==='reviewing')).length;
+ document.getElementById('tabs-in').innerHTML=TABS[S.role].map(([k,l,i])=>`<button data-act="tab:${k}" aria-current="${S.tab===k&&!S.view?'page':'false'}">${ic(i)}${l}${k==='review'&&wait?`<span class="dot">${wait}</span>`:''}</button>`).join('');
  let title=TITLES[S.tab],body;
- if(S.view){title='평가 결과';body=vEval()}
- else body={dash:vDash,upload:vUpload,review:vReview,team:vTeam,mine:vMine,study:vStudy,adash:vAdash,events:vEvents,criteria:vCriteria}[S.tab]();
+ if(S.view){const e=EVALS.find(x=>x.id===S.view.id);title=S.role==='employee'&&e.status==='practice'?'연습 결과':'평가 결과';body=vEval()}
+ else body={dash:vDash,upload:vUpload,practice:vUpload,review:vReview,team:vTeam,history:vHistory,results:vResults,study:vStudy,adash:vAdash,events:vEvents,criteria:vCriteria}[S.tab]();
  const me=ME[S.role];
  app.innerHTML=`<div class="topbar">${S.view?`<button class="back" data-act="back" aria-label="뒤로">${ic('back',20)}</button>`:''}<h1>${title}</h1><div class="who"><b>${me.name}</b><br>${me.sub}</div></div>${body}`;
 }
 
 document.addEventListener('click',ev=>{
  const b=ev.target.closest('[data-act]');if(!b||b.disabled)return;
- if(b.matches('input'))return;
  const [a,v]=b.dataset.act.split(':');
  if(a==='role')return setRole(v);
  if(a==='tab')return go(v);
- if(a==='open'){S.toast=null;return openEval(v)}
- if(a==='back'){S.view=null;S.toast=null;S.edit=false;return render()}
- if(a==='item'){if(ev.target.matches('input'))return;S.open[v]=!S.open[v];return render()}
- if(a==='edit'){S.edit=!S.edit;if(S.edit)CRIT.forEach((_,i)=>S.open[i]=S.open[i]);return render()}
- if(a==='confirm'){const e=EVALS.find(x=>x.id===v);e.status='confirmed';S.edit=false;S.toast=`확정했어요. ${E(e.emp).name}님에게 결과가 공개되었습니다.`;return render()}
+ if(a==='open')return openEval(v);
+ if(a==='back'){S.view=null;S.toast=null;return render()}
+ if(a==='item'){S.open[v]=!S.open[v];return render()}
  if(a==='emp'){S.flow.emp=v;return render()}
  if(a==='prod'){S.flow.prod=v;return render()}
  if(a==='next'){S.flow.step++;return render()}
  if(a==='step'){S.flow.step=+v;return render()}
- if(a==='sample')return v==='video'?startFile('매장촬영_0924.mp4',812*1048576,'video'):startFile('통화녹음_0924.m4a',68*1048576,'audio');
+ if(a==='sample')return v==='video'?startFile('매장촬영_0925.mp4',812*1048576,'video'):startFile('통화녹음_0925.m4a',68*1048576,'audio');
  if(a==='send')return send();
+ if(a==='hist'){S.tab='history';S.histProd=v;S.view=null;S.pick=null;S.toast=null;render();return scrollTo(0,0)}
+ if(a==='hp'){S.histProd=v;S.pick=null;S.toast=null;return render()}
+ if(a==='pick'){S.pick=v;S.toast=null;return render()}
+ if(a==='submit'){const note=(document.getElementById('self-note')||{}).value||'';
+  EVALS.forEach(e=>{if(e.emp===ME.employee.id&&e.p===S.histProd&&e.status==='submitted'){e.status='practice';e.note=''}});
+  const e=EVALS.find(x=>x.id===S.pick);e.status='submitted';e.note=note;S.toast=`${e.n}회차를 정유진 매니저에게 제출했어요.`;return render()}
+ if(a==='savedraft'){const e=EVALS.find(x=>x.id===v);e.status='reviewing';S.toast='임시 저장했어요. 이제 사원은 제출 회차를 바꿀 수 없습니다.';render();return scrollTo(0,0)}
+ if(a==='complete'){const e=EVALS.find(x=>x.id===v);const d=S.draft;
+  e.mgr={s:d.s.slice(),comment:d.comment||'(총평 없음)',tasks:d.tasks.split('\n').map(x=>x.trim()).filter(Boolean),date:'방금 전'};e.status='completed';
+  S.toast=`평가를 완료했어요. ${E(e.emp).name}님에게 공개되었습니다.`;render();return scrollTo(0,0)}
  if(a==='mat'){S.matOpen=S.matOpen===v?null:v;return render()}
  if(a==='extract'){const p=P(v);if(!p.checklist.length){p.materials.push('레티놀 나이트크림 교육자료.pdf');p.checklist=[['필수 설명','순수 레티놀 0.1% 함량과 저녁 사용 안내'],['필수 설명','처음 2주는 격일 사용 권장'],['필수 콜멘트','“런칭 기념으로 앰플 미니를 드려요”'],['금지 표현','“주름이 없어진다” 등 치료 효과 표현']]}return render()}
 });
 document.addEventListener('input',ev=>{
- const i=ev.target.dataset.score;if(i==null)return;
- const e=EVALS.find(x=>x.id===S.view.id);const v=Math.max(0,Math.min(10,+ev.target.value||0));e.items[i].score=v;
- const el=document.getElementById('total-v');if(el)el.innerHTML=`${total(e).toFixed(1)}<small> / 10</small>`;
+ const t=ev.target;if(!S.draft)return;
+ if(t.dataset.ms!=null){const i=+t.dataset.ms;const e=EVALS.find(x=>x.id===S.view.id);const v=Math.max(0,Math.min(10,Math.round(+t.value||0)));S.draft.s[i]=v;
+  document.getElementById('ms-total').textContent=avg(S.draft.s).toFixed(1);const g=Math.abs(v-e.items[i].score);document.getElementById('gap-'+i).textContent=g>=2?'차이 '+g:''}
+ if(t.dataset.mc)S.draft.comment=t.value;
+ if(t.dataset.mt)S.draft.tasks=t.value;
 });
 document.addEventListener('change',ev=>{
  if(ev.target.id!=='file-in')return;const f=ev.target.files[0];if(!f)return;
