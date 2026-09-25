@@ -183,6 +183,7 @@ textarea{border:1px solid var(--line);background:var(--surface);border-radius:10
 <div class="shell" id="app"></div>
 <nav class="tabs" id="tabs" hidden><div class="tabs-in" id="tabs-in"></div></nav>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const ICON={
  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
@@ -290,16 +291,16 @@ const managerVisible=e=>e.kind==='proxy'||e.status!=='practice';
 /* ---------- 상태 ---------- */
 const S={role:null,tab:null,view:null,flow:null,open:{},toast:null,matOpen:'p1',histProd:'p1',pick:null,draft:null};
 const TABS={
- manager:[['dash','홈','home'],['review','제출됨','inbox'],['upload','대리 업로드','up'],['team','사원','users']],
- employee:[['practice','연습하기','up'],['history','연습 기록','chart'],['results','받은 평가','star'],['study','교육자료','book']],
- admin:[['adash','전체 현황','home'],['events','행사·교육자료','book'],['criteria','평가 항목','list']]
+ manager:[['dash','홈','home'],['review','제출됨','inbox'],['upload','대리 업로드','up'],['best','우수 사례','star'],['team','사원','users']],
+ employee:[['practice','연습하기','up'],['history','연습 기록','chart'],['results','받은 평가','inbox'],['best','우수 사례','star'],['study','교육자료','book']],
+ admin:[['adash','전체 현황','home'],['people','사원 등록','users'],['events','행사·교육자료','book'],['criteria','평가 항목','list'],['best','우수 사례','star']]
 };
 const ROLE_NAME={manager:'매니저',employee:'사원',admin:'관리자'};
 const ME={manager:{name:'정유진',sub:'강남점 매니저'},employee:{name:'박서준',sub:'사번 20231042',id:'m1'},admin:{name:'본사 교육팀',sub:'관리자'}};
 
 function setRole(r){S.role=r;S.tab=TABS[r][0][0];S.view=null;S.toast=null;if(S.tab==='practice')newFlow();render();scrollTo(0,0)}
-function go(tab){S.tab=tab;S.view=null;S.toast=null;if(tab==='upload'||tab==='practice')newFlow();render();scrollTo(0,0)}
-function openEval(id){S.view={id};S.open={};S.toast=null;const e=EVALS.find(x=>x.id===id);
+function go(tab){S.tab=tab;S.share=null;S.bulk=null;S.copied=null;S.tplNote=false;S.view=null;S.toast=null;if(tab==='upload'||tab==='practice')newFlow();render();scrollTo(0,0)}
+function openEval(id){S.share=null;S.view={id};S.open={};S.toast=null;const e=EVALS.find(x=>x.id===id);
  S.draft=e.mgr?null:{s:e.items.map(i=>i.score),comment:'',tasks:e.tasks.join('\n')};render();scrollTo(0,0)}
 function newFlow(){const emp=S.role==='employee';S.flow={step:emp?2:1,emp:emp?ME.employee.id:null,prod:null,file:null,phase:'pick',pct:0,stage:0}}
 
@@ -390,9 +391,142 @@ function vReview(){
   <div class="sec-title">평가 완료</div><div class="list">${done.map(e=>evalRow(e)).join('')}</div></div>`;
 }
 
+/* ---------- 사원 일괄 등록 (엑셀) ---------- */
+const MANAGERS=[{email:'yujin.jung@example.com',name:'정유진',store:'강남점'},{email:'jiwoo.han@example.com',name:'한지우',store:'홍대점'},{email:'seoa.yoon@example.com',name:'윤서아',store:'잠실점'},{email:'taemin.oh@example.com',name:'오태민',store:'판교점'}];
+const TPL_COLS=[['이름','필수','한소영'],['사번','필수 · 숫자 6~10자리','20240912'],['매장','필수 (관리자 등록 시)','홍대점'],['담당 매니저 이메일','비우면 매장 매니저로 자동 지정','jiwoo.han@example.com'],['초기 비밀번호','비우면 자동 생성 · 8자 이상','']];
+const SAMPLE_ADMIN=[['한소영','20240912','홍대점','jiwoo.han@example.com',''],['정민호','20240913','홍대점','',''],['김다은','20240914','잠실점','seoa.yoon@example.com','Spring2024!'],['류지훈','20240915','잠실점','',''],['박서영','20240916','판교점','taemin.oh@example.com',''],['이도윤','20231042','강남점','yujin.jung@example.com',''],['','20240918','판교점','',''],['신예린','2024A19','판교점','',''],['안재현','20240920','부산점','',''],['고은비','20240912','홍대점','',''],['김선우','20240921','강남점','','1234'],['오하린','20240922','강남점','','']];
+const SAMPLE_MGR=[['한소영','20240912','','',''],['정민호','20240913','','',''],['김다은','20240914','','','Spring2024!'],['이도윤','20231042','','',''],['','20240918','','',''],['류지훈','20240915','','','1234']];
+function genPw(){const a='abcdefghjkmnpqrstuvwxyz',d='23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];for(let i=0;i<4;i++)s+=d[Math.floor(Math.random()*d.length)];return s[0].toUpperCase()+s.slice(1)}
+function checkRows(raw){
+ const isMgr=S.role==='manager';const seen={};const existing=EMPS.map(e=>e.no);
+ return raw.map((r,idx)=>{
+  let [name,no,store,mgr,pw]=r.map(x=>String(x??'').trim());const err=[];
+  if(isMgr){store='강남점';mgr='yujin.jung@example.com'}
+  if(!name)err.push('이름이 비어 있어요');
+  if(!/^\d{6,10}$/.test(no))err.push('사번은 숫자 6~10자리여야 해요');
+  else if(existing.includes(no))err.push('이미 등록된 사번이에요');
+  else if(seen[no])err.push(`${seen[no]}행과 사번이 겹쳐요`);
+  if(/^\d{6,10}$/.test(no)&&!seen[no])seen[no]=idx+2;
+  const st=MANAGERS.find(m=>m.store===store);
+  if(!store)err.push('매장이 비어 있어요');else if(!st)err.push(`‘${store}’은 등록된 매장이 아니에요`);
+  let m=mgr?MANAGERS.find(x=>x.email===mgr):st;
+  if(mgr&&!m)err.push('등록되지 않은 매니저 이메일이에요');
+  else if(m&&st&&m.store!==store)err.push('매니저와 매장이 맞지 않아요');
+  if(pw&&pw.length<8)err.push('초기 비밀번호는 8자 이상이어야 해요');
+  return {row:idx+2,name,no,store,mgr:m?m.name:'',pw,auto:!pw,err};
+ });
+}
+function loadRows(raw,fileName){S.bulk={file:fileName,rows:checkRows(raw),done:false};render()}
+function parseSheet(file){
+ const rd=new FileReader();
+ rd.onload=()=>{try{
+  const buf=new Uint8Array(rd.result);let wb;
+  if(/\.csv$/i.test(file.name)){let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(e){txt=new TextDecoder('euc-kr').decode(buf)}wb=XLSX.read(txt.replace(/^\uFEFF/,''),{type:'string'})}
+  else wb=XLSX.read(buf,{type:'array'});const sh=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
+  const h=aoa.findIndex(r=>r.some(c=>String(c).trim()==='이름')&&r.some(c=>String(c).trim()==='사번'));
+  if(h<0){S.bulk={error:'첫 줄에서 ‘이름’, ‘사번’ 제목을 찾지 못했어요. 양식의 제목 줄을 그대로 두고 아래에 입력해 주세요.'};return render()}
+  const head=aoa[h].map(c=>String(c).trim());const col=k=>head.findIndex(c=>c.startsWith(k));
+  const idx=[col('이름'),col('사번'),col('매장'),col('담당'),col('초기')];
+  const raw=aoa.slice(h+1).filter(r=>r.some(c=>String(c).trim())).map(r=>idx.map(i=>i<0?'':r[i]));
+  if(!raw.length){S.bulk={error:'제목 줄 아래에 사원 정보가 없어요.'};return render()}
+  loadRows(raw,file.name);
+ }catch(e){S.bulk={error:'파일을 읽지 못했어요. 엑셀(.xlsx, .xls) 또는 CSV 파일인지 확인해 주세요.'};render()}};
+ rd.readAsArrayBuffer(file);
+}
+function vPeople(){
+ const isMgr=S.role==='manager';const b=S.bulk;
+ const cols=isMgr?TPL_COLS.filter((_,i)=>i!==2&&i!==3):TPL_COLS;
+ let out=`<div class="note">${isMgr?'강남점 사원을 한 번에 등록합니다. 매장과 담당 매니저는 자동으로 정유진 매니저(강남점)로 지정됩니다.':'여러 매장의 사원을 한 번에 등록합니다. 처음 앱을 시작할 때 전체 명단을 이 방법으로 올리세요.'}</div>
+  <div class="panel"><h3>1. 양식에 명단 입력</h3>
+   <div class="tbl"><table><thead><tr><th>열 제목</th><th>입력 규칙</th><th>예시</th></tr></thead><tbody>
+   ${cols.map(c=>`<tr><td><b>${c[0]}</b></td><td class="hint">${c[1]}</td><td class="num">${c[2]||'<span class="hint">(비움)</span>'}</td></tr>`).join('')}</tbody></table></div>
+   <button class="btn ghost block" style="margin-top:10px" data-act="tpl">엑셀 양식 받기</button>
+   ${S.tplNote?'<div class="hint" style="margin-top:6px">미리보기에서는 파일 저장이 막혀 있어요. 실제 앱에서는 이 버튼으로 양식(.xlsx)을 받습니다.</div>':''}</div>
+  <div class="panel"><h3>2. 파일 올리기</h3>
+   <div class="drop" style="padding:16px"><div class="hint">.xlsx · .xls · .csv</div>
+    <label class="btn" for="bulk-in">엑셀 파일 선택</label><input id="bulk-in" type="file" accept=".xlsx,.xls,.csv" hidden>
+    <button class="btn ghost" data-act="bulk-sample">샘플 명단으로 체험</button></div></div>`;
+ if(b&&b.error)out+=`<div class="banner warn">${esc(b.error)}</div><button class="btn ghost block" data-act="bulk-reset">다시 올리기</button>`;
+ if(b&&b.rows&&!b.done){
+  const ok=b.rows.filter(r=>!r.err.length),bad=b.rows.filter(r=>r.err.length);
+  out+=`<div class="panel"><h3>3. 확인하고 등록</h3><div class="meta" style="margin-bottom:8px"><span>${esc(b.file)}</span><span>${b.rows.length}행</span></div>
+   <div class="chips" style="margin-bottom:10px"><span class="pill p-good">등록 가능 ${ok.length}명</span>${bad.length?`<span class="pill p-bad">확인 필요 ${bad.length}행</span>`:''}</div>
+   ${bad.length?`<div class="stack" style="gap:6px;margin-bottom:12px">${bad.map(r=>`<div class="banner warn" style="padding:8px 12px;font-size:13.5px"><span class="num">${r.row}행</span><span><b>${esc(r.name||'(이름 없음)')}</b> ${esc(r.no)} · ${r.err.map(esc).join(', ')}</span></div>`).join('')}</div>`:''}
+   <div class="tbl"><table><thead><tr><th>행</th><th>이름</th><th>사번</th>${isMgr?'':'<th>매장</th><th>매니저</th>'}<th>비밀번호</th></tr></thead><tbody>
+   ${ok.map(r=>`<tr><td class="num hint">${r.row}</td><td><b>${esc(r.name)}</b></td><td class="num">${r.no}</td>${isMgr?'':`<td>${esc(r.store)}</td><td>${esc(r.mgr)}</td>`}<td>${r.auto?'<span class="pill p-info">자동 생성</span>':'<span class="pill p-mute">지정함</span>'}</td></tr>`).join('')}
+   </tbody></table></div>
+   <div class="btns" style="margin-top:12px"><button class="btn ghost" data-act="bulk-reset">다시 올리기</button><button class="btn" data-act="bulk-reg" ${ok.length?'':'disabled'}>${bad.length?`오류 ${bad.length}행 빼고 `:''}${ok.length}명 등록</button></div>
+   ${bad.length?'<div class="hint" style="margin-top:6px">오류가 있는 행은 엑셀에서 고친 뒤 다시 올리면 됩니다. 이미 등록된 사원은 중복으로 등록되지 않아요.</div>':''}</div>`;
+ }
+ if(b&&b.done){
+  out+=`<div class="banner good">${b.reg.length}명을 등록했어요. 초기 비밀번호를 각 사원에게 전달해 주세요. 사원은 첫 로그인 때 새 비밀번호로 바꿉니다.</div>
+   <div class="panel"><h3>초기 비밀번호</h3><div class="tbl"><table><thead><tr><th>이름</th><th>사번</th>${isMgr?'':'<th>매장</th>'}<th>초기 비밀번호</th></tr></thead><tbody>
+   ${b.reg.map(r=>`<tr><td><b>${esc(r.name)}</b></td><td class="num">${r.no}</td>${isMgr?'':`<td>${esc(r.store)}</td>`}<td class="num">${esc(r.pw)}</td></tr>`).join('')}</tbody></table></div>
+   <div class="btns" style="margin-top:12px"><button class="btn ghost" data-act="copypw">표 복사</button><button class="btn ghost" data-act="tpl">결과 엑셀 받기</button></div>
+   ${S.copied?`<div class="hint" style="margin-top:6px">${S.copied}</div>`:''}
+   <div class="hint" style="margin-top:6px">보안을 위해 이 화면을 벗어나면 초기 비밀번호를 다시 볼 수 없어요. 잊은 사원은 비밀번호 초기화로 새로 발급하세요.</div></div>
+   <button class="btn ghost block" data-act="bulk-reset">다른 명단 올리기</button>`;
+ }
+ return `<div class="stack">${out}</div>`;
+}
+
+/* ---------- 우수 사례 게시판 ---------- */
+const BEST=[
+ {id:'s1',name:'김민지',store:'강남점',p:'p2',mgr:'정유진',date:'9월 23일',score:8.7,comp:100,dur:'12:02',sec:722,scope:'all',likes:24,plays:131,
+  point:'행사 구성을 먼저 보여 주고 고객 고민을 들은 뒤 비타C 함량을 설명하는 순서가 교과서 같습니다. 7분대 클로징을 꼭 들어 보세요.',
+  ch:[['00:48','행사 오프닝','“이번 달만 미니 2종이 같이 들어 있어요. 먼저 한번 보실래요?”'],['03:20','고객 니즈 파악','“아침에 주로 바르세요, 저녁에 바르세요?”'],['05:02','선크림 병행 안내','“비타C는 아침에 쓰시면 선크림을 꼭 같이 발라 주셔야 효과가 살아요.”'],['07:41','클로징','“9월 말까지만 이 구성이라, 오늘 가져가시면 제일 이득이세요.”']]},
+ {id:'s2',name:'서지안',store:'잠실점',p:'p1',mgr:'윤서아',date:'9월 21일',score:8.9,comp:100,dur:'10:36',sec:636,scope:'all',likes:31,plays:188,
+  point:'세럼을 집어 든 순간 바로 묶음 제안으로 연결합니다. 우리 팀이 가장 많이 놓치는 부분이라 1+1 행사 전에 모두 들어 보세요.',
+  ch:[['01:10','행사 오프닝','“이번 주까지 수분크림 1+1 행사 중이에요.”'],['04:05','세라마이드 3종 설명','“세라마이드 NP, AP, EOP 세 가지가 피부 장벽을 채워 줘요.”'],['06:33','묶음 제안','“세럼과 함께 쓰시면 흡수가 더 좋아요. 1+1이라 부담도 적으시고요.”'],['09:12','클로징','“오늘 구매하시면 샘플 키트도 함께 드려요.”']]},
+ {id:'s3',name:'윤가람',store:'홍대점',p:'p1',mgr:'한지우',date:'9월 19일',score:8.2,comp:94,dur:'08:15',sec:495,scope:'all',likes:12,plays:76,
+  point:'“생각해 볼게요”라는 고객 반응을 부드럽게 되돌리는 대응이 좋습니다.',
+  ch:[['02:14','사용법 시연','“진주알 한 개 크기면 얼굴 전체에 충분해요.”'],['06:50','거절 대응','“그럼 샘플 키트 먼저 써 보시고, 1+1은 일요일까지니까 그 전에 오세요.”']]}
+];
+function vBest(){
+ const f=S.bestFilter||'all';const list=BEST.filter(b=>f==='all'||b.p===f);
+ const pl=S.player;
+ return `<div class="stack">
+  <div class="note">매니저가 고른 우수 판매 대화입니다. 표시된 구간을 눌러 핵심 장면만 골라 들을 수 있어요.</div>
+  <div class="chips">${[['all','전체']].concat(PRODUCTS.filter(p=>BEST.some(b=>b.p===p.id)).map(p=>[p.id,p.name])).map(([k,l])=>`<button class="pill ${f===k?'p-info':'p-mute'}" style="border:0;padding:6px 12px;font-size:13px" data-act="bf:${k}">${esc(l)}</button>`).join('')}</div>
+  ${list.map(b=>{const on=pl&&pl.id===b.id;const pos=on?pl.pos:0;
+   return `<article class="panel">
+   <div style="display:flex;gap:10px;align-items:center"><div class="avatar">${b.name[0]}</div><div style="flex:1;min-width:0"><div class="t" style="font-weight:600">${b.name} <span class="hint" style="font-weight:400">· ${b.store}</span></div><div class="hint">${esc(P(b.p).name)} · ${b.date} · 추천 ${b.mgr} 매니저</div></div>
+    <div style="text-align:right"><div class="score">${b.score.toFixed(1)}</div><div class="hint" style="font-size:11px">준수 ${b.comp}%</div></div></div>
+   <p style="margin:12px 0 10px"><span class="lab b">매니저 추천 포인트</span>${esc(b.point)}</p>
+   <div style="display:flex;gap:10px;align-items:center">
+    <button class="btn" style="width:42px;height:42px;padding:0;border-radius:50%;flex:none" data-act="play:${b.id}" aria-label="${on&&pl.playing?'일시정지':'재생'}">${on&&pl.playing?'❚❚':'▶'}</button>
+    <div style="flex:1"><div class="bar" style="position:relative;height:10px">${b.ch.map(c=>`<span style="position:absolute;left:${toSec(c[0])/b.sec*100}%;top:-2px;width:3px;height:14px;background:var(--warn);border-radius:2px"></span>`).join('')}<i style="width:${pos/b.sec*100}%"></i></div>
+     <div class="meta" style="justify-content:space-between;margin-top:4px"><span class="num">${fmtSec(pos)}</span><span class="num">${b.dur}</span></div></div></div>
+   <div class="stack" style="gap:6px;margin-top:10px">${b.ch.map((c,i)=>{const act=on&&pos>=toSec(c[0])&&(i===b.ch.length-1||pos<toSec(b.ch[i+1][0]));
+    return `<button class="choice" style="padding:9px 12px" aria-pressed="${act}" data-act="seek:${b.id}|${c[0]}"><span class="num" style="color:var(--accent);font-size:13px">${c[0]}</span><div class="main"><div style="font-weight:600;font-size:14px">${c[1]}</div><div class="hint" style="white-space:normal">${esc(c[2])}</div></div></button>`}).join('')}</div>
+   <div class="btns" style="margin-top:10px"><button class="btn ghost" data-act="like:${b.id}">${S.liked&&S.liked[b.id]?'♥':'♡'} 도움이 됐어요 ${b.likes}</button><span class="hint" style="align-self:center">재생 ${b.plays}회</span></div>
+   ${S.role==='admin'?'<button class="btn ghost block" style="margin-top:6px">게시판에서 내리기</button>':''}
+  </article>`}).join('')}
+ </div>`;
+}
+const toSec=t=>{const [m,s]=t.split(':').map(Number);return m*60+s};
+const fmtSec=x=>`${String(Math.floor(x/60)).padStart(2,'0')}:${String(Math.floor(x%60)).padStart(2,'0')}`;
+function vShare(e){
+ if(S.role!=='manager'||e.status!=='completed')return '';
+ const shared=BEST.find(b=>b.evalId===e.id);
+ if(shared)return `<div class="banner good">우수 사례 게시판에 공유했어요. 다른 사원들이 이 대화를 들을 수 있습니다. <button class="btn ghost" style="padding:2px 10px;font-size:12.5px" data-act="tab:best">게시판 보기</button></div>`;
+ const sh=S.share||{};const met=e.comp.filter(c=>c.st==='m'&&c.ev[0]!=='—');
+ return `<div class="panel"><h3>우수 사례로 공유</h3>
+  <div class="hint" style="margin:-6px 0 10px">다른 사원들이 벤치마킹할 수 있게 이 대화를 게시판에 올립니다.</div>
+  <div class="field"><span>추천 포인트 (무엇을 들어 보면 좋은지)</span><textarea id="share-point" data-sp="1" placeholder="예: 세럼을 집어 든 순간 바로 묶음 제안으로 연결하는 부분">${esc(sh.point||'')}</textarea></div>
+  <div class="field" style="margin-top:10px"><span>들어 볼 구간 (AI가 찾은 잘한 장면)</span>
+   <div class="stack" style="gap:6px">${met.map((c,i)=>`<label class="choice" style="padding:8px 12px;cursor:pointer"><input type="checkbox" id="ch-${i}" checked><span class="num" style="color:var(--accent);font-size:13px">${c.ev[0]}</span><span class="main" style="font-size:14px">${esc(c.req)}</span></label>`).join('')}</div></div>
+  <div class="field" style="margin-top:10px"><span>공개 범위</span><select id="share-scope"><option>전체 매장</option><option>우리 매장(강남점)만</option></select></div>
+  <label style="display:flex;gap:8px;margin-top:12px;font-size:14px;cursor:pointer"><input type="checkbox" id="ok-emp" data-ok="emp" ${sh.emp?'checked':''}> ${E(e.emp).name}님에게 공유 동의를 받았어요</label>
+  <label style="display:flex;gap:8px;margin-top:6px;font-size:14px;cursor:pointer"><input type="checkbox" id="ok-cus" data-ok="cus" ${sh.cus?'checked':''}> 고객의 이름·연락처 등 개인정보가 녹음에 없는 것을 확인했어요</label>
+  <button class="btn block" style="margin-top:12px" data-act="share:${e.id}" ${sh.emp&&sh.cus?'':'disabled'}>게시판에 공유</button></div>`;
+}
+
 function vTeam(){
  return `<div class="stack"><div class="list">${EMPS.map(m=>`<div class="row"><div class="avatar">${m.name[0]}</div><div class="main"><div class="t">${m.name}</div><div class="s">사번 ${m.no} · ${m.store}</div></div><button class="btn ghost" style="padding:6px 10px;font-size:12.5px">비밀번호 초기화</button></div>`).join('')}</div>
-  <div class="panel"><h3>사원 등록</h3><div class="stack" style="gap:10px">
+  <button class="btn block" data-act="tab:people">엑셀로 여러 명 한 번에 등록</button>
+  <div class="panel"><h3>한 명씩 등록</h3><div class="stack" style="gap:10px">
    <div class="field"><span>이름</span><input id="new-name" placeholder="예: 한소희"></div>
    <div class="field"><span>사번</span><input id="new-no" placeholder="예: 20240912" inputmode="numeric"></div>
    <button class="btn block">등록하고 초기 비밀번호 받기</button>
@@ -444,7 +578,7 @@ function vEval(){
  const src=`<div class="panel"><h3>원본</h3><div class="meta"><span>${esc(e.src)}</span><span>원본 ${e.orig} → 전송 ${e.out}</span></div>
    <button class="btn ghost" style="margin-top:10px">대화 녹취록 보기 (화자 구분)</button></div>`;
  const empSubmit=!isMgr&&e.status==='practice'?`<button class="btn block" data-act="hist:${e.p}">연습 기록에서 이 회차 제출하기</button>`:'';
- return `<div class="stack">${top}${tiles}${mgrPanel}${reviewPanel}${compPanel}${aiChart}${itemsPanel}${aiSummary}${src}${empSubmit}</div>`;
+ return `<div class="stack">${top}${tiles}${vShare(e)}${mgrPanel}${reviewPanel}${compPanel}${aiChart}${itemsPanel}${aiSummary}${src}${empSubmit}</div>`;
 }
 
 function vReviewForm(e){
@@ -607,7 +741,7 @@ function vCriteria(){
 }
 
 /* ---------- 렌더 ---------- */
-const TITLES={dash:'팀 현황',upload:'대리 업로드',review:'제출된 대화',team:'사원 관리',practice:'연습하기',history:'내 연습 기록',results:'받은 평가',study:'교육자료',adash:'전체 현황',events:'행사 품목 · 교육자료',criteria:'평가 항목'};
+const TITLES={dash:'팀 현황',upload:'대리 업로드',review:'제출된 대화',team:'사원 관리',practice:'연습하기',history:'내 연습 기록',results:'받은 평가',study:'교육자료',adash:'전체 현황',events:'행사 품목 · 교육자료',criteria:'평가 항목',people:'사원 일괄 등록',best:'우수 사례'};
 function render(){
  document.getElementById('roles').innerHTML=['manager','employee','admin'].map(r=>`<button data-act="role:${r}" aria-pressed="${S.role===r}">${ROLE_NAME[r]}</button>`).join('');
  const app=document.getElementById('app'),tabs=document.getElementById('tabs');
@@ -617,7 +751,7 @@ function render(){
  document.getElementById('tabs-in').innerHTML=TABS[S.role].map(([k,l,i])=>`<button data-act="tab:${k}" aria-current="${S.tab===k&&!S.view?'page':'false'}">${ic(i)}${l}${k==='review'&&wait?`<span class="dot">${wait}</span>`:''}</button>`).join('');
  let title=TITLES[S.tab],body;
  if(S.view){const e=EVALS.find(x=>x.id===S.view.id);title=S.role==='employee'&&e.status==='practice'?'연습 결과':'평가 결과';body=vEval()}
- else body={dash:vDash,upload:vUpload,practice:vUpload,review:vReview,team:vTeam,history:vHistory,results:vResults,study:vStudy,adash:vAdash,events:vEvents,criteria:vCriteria}[S.tab]();
+ else body={dash:vDash,upload:vUpload,practice:vUpload,review:vReview,team:vTeam,history:vHistory,results:vResults,study:vStudy,adash:vAdash,events:vEvents,criteria:vCriteria,people:vPeople,best:vBest}[S.tab]();
  const me=ME[S.role];
  app.innerHTML=`<div class="topbar">${S.view?`<button class="back" data-act="back" aria-label="뒤로">${ic('back',20)}</button>`:''}<h1>${title}</h1><div class="who"><b>${me.name}</b><br>${me.sub}</div></div>${body}`;
 }
@@ -646,19 +780,37 @@ document.addEventListener('click',ev=>{
  if(a==='complete'){const e=EVALS.find(x=>x.id===v);const d=S.draft;
   e.mgr={s:d.s.slice(),comment:d.comment||'(총평 없음)',tasks:d.tasks.split('\n').map(x=>x.trim()).filter(Boolean),date:'방금 전'};e.status='completed';
   S.toast=`평가를 완료했어요. ${E(e.emp).name}님에게 공개되었습니다.`;render();return scrollTo(0,0)}
+ if(a==='bulk-sample'){loadRows(S.role==='manager'?SAMPLE_MGR:SAMPLE_ADMIN,S.role==='manager'?'강남점_신규사원.xlsx':'전사_사원명단.xlsx');return}
+ if(a==='bulk-reset'){S.bulk=null;S.copied=null;render();return scrollTo(0,0)}
+ if(a==='bulk-reg'){const reg=S.bulk.rows.filter(r=>!r.err.length).map(r=>({...r,pw:r.pw||genPw()}));reg.forEach(r=>{if(r.store==='강남점')EMPS.push({id:'n'+r.no,name:r.name,no:r.no,store:r.store})});S.bulk={...S.bulk,done:true,reg};S.copied=null;render();return scrollTo(0,0)}
+ if(a==='copypw'){const t=S.bulk.reg.map(r=>[r.name,r.no,r.store,r.pw].join('\t')).join('\n');const ok=()=>{S.copied='복사했어요. 메신저나 엑셀에 붙여 넣으세요.';render()};try{navigator.clipboard.writeText('이름\t사번\t매장\t초기 비밀번호\n'+t).then(ok,()=>{S.copied='복사가 막혀 있어요. 표를 길게 눌러 직접 선택해 주세요.';render()})}catch(e){S.copied='복사가 막혀 있어요. 표를 길게 눌러 직접 선택해 주세요.';render()}return}
+ if(a==='bf'){S.bestFilter=v;return render()}
+ if(a==='like'){S.liked=S.liked||{};const b=BEST.find(x=>x.id===v);S.liked[v]=!S.liked[v];b.likes+=S.liked[v]?1:-1;return render()}
+ if(a==='play'){const b=BEST.find(x=>x.id===v);if(!S.player||S.player.id!==v){S.player={id:v,pos:0,playing:true};b.plays++}else S.player.playing=!S.player.playing;tick();return render()}
+ if(a==='seek'){const [id,t]=b.dataset.act.slice(5).split('|');const bb=BEST.find(x=>x.id===id);if(!S.player||S.player.id!==id){S.player={id,pos:0,playing:true};bb.plays++}S.player.pos=toSec(t);S.player.playing=true;tick();return render()}
+ if(a==='share'){const e=EVALS.find(x=>x.id===v);const pt=(document.getElementById('share-point')||{}).value||'';const met=e.comp.filter(c=>c.st==='m'&&c.ev[0]!=='—');
+  const ch=met.filter((c,i)=>{const el=document.getElementById('ch-'+i);return !el||el.checked}).map(c=>[c.ev[0],c.req.replace(/^.*?: /,'').slice(0,18),c.ev[1]]);
+  BEST.unshift({id:'s'+e.id,evalId:e.id,name:E(e.emp).name,store:'강남점',p:e.p,mgr:'정유진',date:'방금 전',score:mgrTotal(e),comp:compRate(e),dur:'14:12',sec:852,scope:'all',likes:0,plays:0,point:pt||'추천 포인트가 없습니다.',ch:ch.length?ch:[['00:30','대화 시작','']]});
+  S.share=null;return render()}
+ if(a==='tpl'){S.tplNote=true;return render()}
  if(a==='mat'){S.matOpen=S.matOpen===v?null:v;return render()}
  if(a==='extract'){const p=P(v);if(!p.checklist.length){p.materials.push('레티놀 나이트크림 교육자료.pdf');p.checklist=[['필수 설명','순수 레티놀 0.1% 함량과 저녁 사용 안내'],['필수 설명','처음 2주는 격일 사용 권장'],['필수 콜멘트','“런칭 기념으로 앰플 미니를 드려요”'],['금지 표현','“주름이 없어진다” 등 치료 효과 표현']]}return render()}
 });
 document.addEventListener('input',ev=>{
- const t=ev.target;if(!S.draft)return;
+ const t=ev.target;
+ if(t.dataset.sp){S.share=S.share||{};S.share.point=t.value;return}
+ if(!S.draft)return;
  if(t.dataset.ms!=null){const i=+t.dataset.ms;const e=EVALS.find(x=>x.id===S.view.id);const v=Math.max(0,Math.min(10,Math.round(+t.value||0)));S.draft.s[i]=v;
   document.getElementById('ms-total').textContent=avg(S.draft.s).toFixed(1);const g=Math.abs(v-e.items[i].score);document.getElementById('gap-'+i).textContent=g>=2?'차이 '+g:''}
  if(t.dataset.mc)S.draft.comment=t.value;
  if(t.dataset.mt)S.draft.tasks=t.value;
 });
 document.addEventListener('change',ev=>{
+ if(ev.target.dataset.ok){S.share=S.share||{};S.share.point=(document.getElementById('share-point')||{}).value||S.share.point;S.share[ev.target.dataset.ok]=ev.target.checked;return render()}
+ if(ev.target.id==='bulk-in'){const f=ev.target.files[0];if(f)parseSheet(f);return}
  if(ev.target.id!=='file-in')return;const f=ev.target.files[0];if(!f)return;
  startFile(f.name,f.size,f.type.startsWith('video')||/\.(mp4|mov|webm|mkv|avi)$/i.test(f.name)?'video':'audio');
 });
+function tick(){clearInterval(S.pt);S.pt=setInterval(()=>{const p=S.player;if(!p||!p.playing||S.tab!=='best'||S.view){clearInterval(S.pt);return}const b=BEST.find(x=>x.id===p.id);p.pos=Math.min(b.sec,p.pos+1);if(p.pos>=b.sec)p.playing=false;render()},1000)}
 render();
 </script>
