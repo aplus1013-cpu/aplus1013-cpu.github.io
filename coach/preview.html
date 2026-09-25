@@ -1,0 +1,602 @@
+<title>매장 판매 코칭</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8;--surface:#FFFFFF;--surface-2:#EDF0F4;--line:#DCE1E8;
+  --ink:#15202B;--muted:#5B6875;--accent:#2E54D6;--accent-ink:#FFFFFF;--accent-soft:#E3E9FB;
+  --good:#16804F;--good-soft:#DFF2E8;--warn:#A86400;--warn-soft:#FBEED6;--bad:#C23636;--bad-soft:#FBE4E4;
+  --shadow:0 1px 2px rgba(21,32,43,.06),0 4px 16px rgba(21,32,43,.06);
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#0E1319;--surface:#161D26;--surface-2:#1D2631;--line:#2A3542;
+  --ink:#E6ECF2;--muted:#94A1AF;--accent:#7D98F4;--accent-ink:#0E1319;--accent-soft:#1F2A4A;
+  --good:#52C68F;--good-soft:#16301F;--warn:#E9A640;--warn-soft:#382A12;--bad:#F07878;--bad-soft:#3A1D20;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#0E1319;--surface:#161D26;--surface-2:#1D2631;--line:#2A3542;
+  --ink:#E6ECF2;--muted:#94A1AF;--accent:#7D98F4;--accent-ink:#0E1319;--accent-soft:#1F2A4A;
+  --good:#52C68F;--good-soft:#16301F;--warn:#E9A640;--warn-soft:#382A12;--bad:#F07878;--bad-soft:#3A1D20;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* preview strip */
+.strip{background:var(--ink);color:var(--bg);padding:8px 16px;font-size:12.5px}
+.strip-in{max-width:600px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
+.strip b{font-weight:600;letter-spacing:.02em}
+.roles{display:flex;gap:4px}
+.roles button{border:1px solid color-mix(in srgb,var(--bg) 35%,transparent);background:transparent;color:var(--bg);border-radius:999px;padding:3px 11px;font-size:12.5px}
+.roles button[aria-pressed="true"]{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+
+.shell{max-width:600px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;align-items:center;gap:10px;padding-block:14px 10px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.topbar h1{font-size:19px;font-weight:700;margin:0;flex:1;text-wrap:balance}
+.who{font-size:12.5px;color:var(--muted);text-align:right;line-height:1.35}
+.back{border:0;background:var(--surface-2);border-radius:10px;width:36px;height:36px;display:grid;place-items:center}
+
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs-in{max-width:600px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+.tabs button{border:0;background:none;padding:9px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);position:relative}
+.tabs button[aria-current="page"]{color:var(--accent);font-weight:600}
+.tabs .dot{position:absolute;top:5px;left:calc(50% + 8px);background:var(--bad);color:#fff;font-size:10px;border-radius:999px;padding:0 5px;line-height:16px;font-family:var(--mono)}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.stack{display:flex;flex-direction:column;gap:14px}
+.sec-title{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.04em;margin:10px 0 -4px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.panel h3{margin:0 0 10px;font-size:16px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 14px}
+.tile .k{font-size:12.5px;color:var(--muted)}
+.tile .v{font-family:var(--mono);font-size:26px;font-weight:500;line-height:1.2;margin-top:2px}
+.tile .v small{font-size:13px;color:var(--muted);font-family:var(--sans)}
+.delta{font-size:12.5px;font-family:var(--mono)}
+.up{color:var(--good)}.down{color:var(--bad)}
+
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:0;border-top:1px solid var(--line);background:none;text-align:left;width:100%}
+.row:first-child{border-top:0}
+button.row:hover{background:var(--surface-2)}
+.row .main{flex:1;min-width:0}
+.row .t{font-weight:600}
+.row .s{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score{font-family:var(--mono);font-size:18px;min-width:40px;text-align:right}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+
+.pill{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+.p-good{background:var(--good-soft);color:var(--good)}
+.p-warn{background:var(--warn-soft);color:var(--warn)}
+.p-bad{background:var(--bad-soft);color:var(--bad)}
+.p-info{background:var(--accent-soft);color:var(--accent)}
+.p-mute{background:var(--surface-2);color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:600;background:var(--accent);color:var(--accent-ink);display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.ghost{background:var(--surface-2);color:var(--ink)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btns .btn{flex:1}
+
+.stepper{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.step{font-size:12.5px;color:var(--muted);border-top:3px solid var(--line);padding-top:6px}
+.step.on{color:var(--ink);border-color:var(--accent);font-weight:600}
+.step.done{border-color:var(--accent)}
+.choice{border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 14px;text-align:left;display:flex;gap:12px;align-items:center;width:100%}
+.choice[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.choice .main{flex:1;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.drop{border:1.5px dashed var(--line);border-radius:14px;padding:22px 16px;text-align:center;background:var(--surface);display:flex;flex-direction:column;gap:10px;align-items:center}
+.drop label{cursor:pointer}
+.hint{font-size:13px;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);background:var(--surface-2);border-radius:10px;padding:10px 12px}
+
+.stages{display:flex;flex-direction:column;gap:10px}
+.stage{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;font-size:14px}
+.stage .ic{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:12px}
+.stage.done .ic{background:var(--good);border-color:var(--good);color:#fff}
+.stage.run .ic{border-color:var(--accent);border-top-color:transparent;animation:spin 0.9s linear infinite}
+.stage.wait{color:var(--muted)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bar{height:8px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .25s}
+.sizes{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;text-align:center}
+.sizes .v{font-family:var(--mono);font-size:22px}
+.sizes .k{font-size:12px;color:var(--muted)}
+
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--sans)}
+.chart .lbl{fill:var(--ink);font-size:12px}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:8px;border-radius:3px;background:var(--accent);display:inline-block}
+.sw.dot{width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.sw.low{background:var(--warn)}
+
+.check{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:12px 0;border-top:1px solid var(--line)}
+.check:first-of-type{border-top:0;padding-top:4px}
+.check .req{font-weight:600;font-size:14.5px}
+.check .ev{grid-column:2;font-size:13.5px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
+.check .ev .ts{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.check .type{grid-column:2;font-size:12px;color:var(--muted)}
+
+.item{border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item-h{width:100%;border:0;background:none;display:flex;align-items:center;gap:10px;padding:12px 0;text-align:left}
+.item-h .n{flex:1;font-weight:600}
+.item-b{padding:0 0 14px;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.item-b p{margin:0}
+.lab{font-size:12px;font-weight:600;letter-spacing:.03em;display:block;margin-bottom:2px}
+.lab.b{color:var(--accent)}.lab.m{color:var(--warn)}
+.scorebox{width:64px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--surface-2);font-family:var(--mono);text-align:right}
+.tasks{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.banner{border-radius:12px;padding:12px 14px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.banner.good{background:var(--good-soft);color:var(--good)}
+.banner.info{background:var(--accent-soft);color:var(--accent)}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 8px;text-align:left;border-top:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600;border-top:0}
+td.r,th.r{text-align:right}
+.field{display:flex;flex-direction:column;gap:4px}
+.field span{font-size:13px;color:var(--muted)}
+.field input,.field select{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:11px 12px}
+
+/* login */
+.login{min-height:70vh;display:flex;flex-direction:column;justify-content:center;gap:18px;padding-block:32px}
+.brand{display:flex;align-items:center;gap:10px}
+.mark{width:40px;height:40px;border-radius:11px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-family:var(--mono)}
+.login h1{font-size:28px;margin:0;line-height:1.25;text-wrap:balance}
+.login p{margin:0;color:var(--muted)}
+.rolepick{display:flex;flex-direction:column;gap:8px}
+@media (prefers-reduced-motion:reduce){.stage.run .ic{animation:none}.bar i{transition:none}}
+</style>
+
+<div class="strip"><div class="strip-in"><b>미리보기 · 샘플 데이터</b><div class="roles" id="roles"></div></div></div>
+<div class="shell" id="app"></div>
+<nav class="tabs" id="tabs" hidden><div class="tabs-in" id="tabs-in"></div></nav>
+
+<script>
+const ICON={
+ home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+ up:'<path d="M12 16V4M6 10l6-6 6 6M4 20h16"/>',
+ inbox:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
+ users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.8 3 2.6 3.5 5.2"/>',
+ book:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/>',
+ list:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
+ chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ back:'<path d="M15 5l-7 7 7 7"/>',
+ file:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/>',
+ chev:'<path d="M6 9l6 6 6-6"/>'
+};
+const ic=(n,s)=>`<svg class="i" viewBox="0 0 24 24" ${s?`style="width:${s}px;height:${s}px"`:''} aria-hidden="true">${ICON[n]}</svg>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- 샘플 데이터 ---------- */
+const CRIT=['제품특징','제품사용설명','묶음판매','친절','자신감','고객소통','고객 니즈 파악','개인화된 제품 추천','재치 있는 멘트','클로징 능력'];
+const TEAM_AVG=[7.4,6.9,5.6,8.4,6.9,7.6,6.4,5.8,6.6,5.4];
+const BASIS={
+ '제품특징':['“72시간 보습이 임상으로 확인된 제품이에요”라고 수치를 들어 설명함','세라마이드 성분 언급은 있었으나 3종 구성 설명은 빠짐'],
+ '제품사용설명':['세럼 다음 단계에 바르는 순서를 손등 시연과 함께 안내함','사용량(진주알 크기) 안내 없이 “적당히”라고 표현함'],
+ '묶음판매':['고객이 세럼을 보던 시점에 1+1 행사를 연결하지 못함','행사 콜멘트의 세럼 연계 문구를 사용하지 않음'],
+ '친절':['입장 인사부터 배웅까지 존댓말과 밝은 톤을 일관되게 유지함','고객이 망설일 때 재촉하지 않고 기다려 줌'],
+ '자신감':['가격 질문에 머뭇거림 없이 행사가와 정상가를 바로 비교함','성분 질문에서 “잘 모르겠지만”으로 시작해 신뢰가 약해짐'],
+ '고객소통':['고객 말을 끊지 않고 요약해 되물어 확인함(“건조함이 제일 고민이시죠?”)','전문 용어를 쉬운 말로 바꿔 설명함'],
+ '고객 니즈 파악':['피부 타입은 물었으나 현재 사용 제품을 확인하지 않음','“저녁에만 바르시나요?” 등 사용 습관 질문이 부족함'],
+ '개인화된 제품 추천':['건성 피부라는 답을 듣고도 일반 설명을 반복함','고객 상황에 맞춘 대안 제품 제안이 없음'],
+ '재치 있는 멘트':['“1+1이라 한 통은 사무실에 두시면 딱이에요”로 분위기를 풀어 줌','가벼운 농담이 행사 설명과 자연스럽게 이어짐'],
+ '클로징 능력':['“생각해 볼게요”에 대응 멘트 없이 대화가 끝남','행사 마감일과 샘플 키트 혜택을 클로징에 쓰지 않음']
+};
+const IMPROVE={
+ '제품특징':'세라마이드 3종(NP·AP·EOP)을 한 문장으로 묶어 말하는 연습을 해 보세요.',
+ '제품사용설명':'사용량을 “진주알 한 개 크기”처럼 구체적으로 안내해 주세요.',
+ '묶음판매':'세럼을 보는 순간이 기회입니다. “세럼과 함께 쓰시면 흡수가 더 좋아요”를 바로 붙여 보세요.',
+ '친절':'지금처럼 유지하세요. 배웅 멘트에 다음 방문 혜택을 한 줄 더하면 좋습니다.',
+ '자신감':'자주 나오는 성분 질문 5개는 답을 외워 두면 머뭇거림이 줄어듭니다.',
+ '고객소통':'확인 질문 뒤에 고객 답을 다시 한번 짧게 요약해 주면 더 좋습니다.',
+ '고객 니즈 파악':'“지금 쓰시는 크림은 어떤 점이 아쉬우세요?”를 첫 질문으로 넣어 보세요.',
+ '개인화된 제품 추천':'고객이 말한 피부 고민을 추천 이유에 그대로 넣어 말해 주세요.',
+ '재치 있는 멘트':'좋습니다. 같은 톤으로 클로징까지 이어 가면 효과가 커집니다.',
+ '클로징 능력':'“이번 주 일요일까지 1+1이고, 오늘은 샘플 키트도 드려요”로 마무리를 제안하세요.'
+};
+const PRODUCTS=[
+ {id:'p1',name:'하이드라 수분크림 1+1',period:'9.15 – 10.12',state:'live',materials:['하이드라 수분크림 제품설명서.pdf','9월 1+1 행사 콜멘트.pdf'],
+  checklist:[
+   ['필수 설명','72시간 보습 지속 임상 결과 안내'],['필수 설명','세라마이드 3종 성분 설명'],['필수 설명','사용 순서(세럼 다음 단계)와 사용량 안내'],
+   ['필수 콜멘트','오프닝: “이번 주까지 수분크림 1+1 행사 중이에요”'],['필수 콜멘트','묶음 제안: “세럼과 함께 쓰시면 흡수가 더 좋아요”'],['필수 콜멘트','클로징: “오늘 구매하시면 샘플 키트도 함께 드려요”'],
+   ['금지 표현','“여드름이 낫는다” 등 의약품 효능 표현'],['금지 표현','타사 제품 비방']]},
+ {id:'p2',name:'비타C 세럼 기획세트',period:'9.01 – 9.30',state:'live',materials:['비타C 세럼 교육자료.pdf','기획세트 구성 안내.txt'],
+  checklist:[
+   ['필수 설명','순수 비타민C 15% 함량 안내'],['필수 설명','아침 사용 시 선크림 병행 안내'],['필수 설명','기획세트 구성(본품+미니 2종) 설명'],
+   ['필수 콜멘트','오프닝: “이번 달만 미니 2종이 같이 들어 있어요”'],['필수 콜멘트','클로징: “9월 말까지만 이 구성이에요”'],
+   ['금지 표현','“기미가 없어진다” 등 치료 효과 표현']]},
+ {id:'p3',name:'데일리 선크림 2개 특가',period:'8.15 – 9.14',state:'ended',materials:['선크림 여름 특가 콜멘트.pdf'],
+  checklist:[['필수 설명','SPF50+ PA++++ 안내'],['필수 콜멘트','“두 개 사시면 한 개 값이 30% 빠져요”'],['금지 표현','“하루 종일 덧바를 필요 없다”']]},
+ {id:'p4',name:'레티놀 나이트크림 런칭',period:'10.13 – 11.09',state:'soon',materials:[],checklist:[]}
+];
+const P=id=>PRODUCTS.find(p=>p.id===id);
+const EMPS=[
+ {id:'m1',name:'박서준',store:'강남점'},{id:'m2',name:'김민지',store:'강남점'},
+ {id:'m3',name:'이하은',store:'강남점'},{id:'m4',name:'최도윤',store:'강남점'}
+];
+const E=id=>EMPS.find(e=>e.id===id);
+const EVIDENCE={
+ met:[['01:05','“고객님, 이번 주까지 수분크림 1+1 행사 중이에요.”'],['03:12','“72시간 보습이 임상으로 확인된 제품이에요.”'],['05:40','“세럼 바르시고 그다음에 이렇게 발라 주시면 돼요.”'],['—','대화 전체에서 해당 표현이 나오지 않음']],
+ partial:[['04:18','“세라마이드가 들어 있어서 보습이 좋아요.” (3종 구성 설명 없음)'],['09:51','“샘플도 좀 챙겨 드릴게요.” (구매 조건과 연결하지 않음)']],
+ missed:[['—','고객이 세럼을 집어 든 07:20 이후에도 묶음 제안이 없음'],['—','해당 멘트가 대화에서 확인되지 않음']],
+ viol:[['06:02','“이거 바르면 트러블도 싹 들어가요.” (의약품 효능 표현)']]
+};
+// status: m=충족, p=부분, x=누락, v=위반
+function mkEval(o){
+ const pr=P(o.p);
+ const pat=o.pat||[];
+ const comp=pr.checklist.map((c,i)=>{
+  const st=pat[i]||'m';
+  const pool=st==='m'?(c[0]==='금지 표현'?[EVIDENCE.met[3]]:EVIDENCE.met.slice(0,3)):st==='p'?EVIDENCE.partial:st==='x'?EVIDENCE.missed:EVIDENCE.viol;
+  return {type:c[0],req:c[1],st,ev:pool[i%pool.length]};
+ });
+ const items=CRIT.map((n,i)=>({name:n,score:o.s[i],avg:TEAM_AVG[i],basis:BASIS[n][i%2?1:0],basis2:BASIS[n][i%2?0:1],improve:IMPROVE[n]}));
+ return Object.assign({comp,items},o);
+}
+let EVALS=[
+ mkEval({id:'e1',emp:'m1',p:'p1',date:'9월 24일 16:20',by:'self',status:'draft',s:[8,7,5,9,7,8,6,5,7,4],prev:6.1,dur:'14분 12초',src:'매장촬영_0924.mp4',orig:'812MB',comp_:'9.4MB',pat:['m','p','m','m','x','p','m','m'],
+  summary:'밝은 태도와 고객 공감은 팀에서 가장 좋은 수준입니다. 제품 효능 설명도 교육자료 수치를 정확히 인용했습니다. 다만 1+1 행사의 핵심인 세럼 묶음 제안을 놓쳤고, 고객이 망설일 때 클로징 멘트 없이 대화가 끝났습니다. 행사 콜멘트 두 문장만 몸에 익히면 성과가 바로 달라질 수 있습니다.',
+  tasks:['세럼 묶음 제안 콜멘트를 고객이 세럼을 볼 때 바로 쓰기','“생각해 볼게요”에 대한 클로징 멘트 2가지 외우기','세라마이드 3종 성분을 한 문장으로 설명하기']}),
+ mkEval({id:'e7',emp:'m3',p:'p1',date:'9월 24일 15:02',by:'manager',status:'analyzing',s:CRIT.map(()=>0),prev:5.6,dur:'22분 05초',src:'통화녹음_이하은.m4a',orig:'31MB',comp_:'5.2MB'}),
+ mkEval({id:'e3',emp:'m3',p:'p1',date:'9월 23일 18:40',by:'manager',status:'draft',s:[6,6,4,8,5,7,5,4,6,5],prev:5.6,dur:'9분 48초',src:'이하은_녹음.m4a',orig:'10MB',comp_:'2.3MB',pat:['m','x','p','m','x','x','v','m'],
+  summary:'친절하고 성실한 응대였지만 행사 내용 전달이 부족했습니다. 트러블 개선 표현은 금지 표현에 해당하므로 바로 교정이 필요합니다.',
+  tasks:['금지 표현 목록 다시 확인하기','행사 오프닝 멘트로 대화 시작하기']}),
+ mkEval({id:'e4',emp:'m4',p:'p2',date:'9월 23일 13:15',by:'self',status:'draft',s:[7,7,6,8,8,7,7,6,8,6],prev:6.8,dur:'11분 30초',src:'최도윤_0923.mov',orig:'640MB',comp_:'7.1MB',pat:['m','p','m','m','p','m'],
+  summary:'자신감 있는 설명과 재치 있는 멘트가 강점입니다. 선크림 병행 안내가 짧았습니다.',tasks:['아침 사용 시 선크림 병행 이유를 한 문장 더 설명하기']}),
+ mkEval({id:'e2',emp:'m2',p:'p2',date:'9월 23일 11:30',by:'manager',status:'confirmed',s:[9,8,8,9,8,9,8,8,7,8],prev:7.9,dur:'12분 02초',src:'김민지_녹음.m4a',orig:'12MB',comp_:'2.8MB',pat:['m','m','m','m','m','m'],
+  summary:'교육자료의 필수 설명과 콜멘트를 모두 자연스럽게 소화했습니다. 팀 교육 사례로 공유할 만한 응대입니다.',tasks:['이번 녹취를 팀 교육 사례로 공유하기']}),
+ mkEval({id:'e5',emp:'m1',p:'p2',date:'9월 18일 17:05',by:'manager',status:'confirmed',s:[7,6,4,8,6,7,6,5,6,3],prev:5.8,dur:'8분 20초',src:'박서준_0918.m4a',orig:'8MB',comp_:'1.9MB',pat:['m','x','m','p','x','m'],
+  summary:'기본 응대는 좋지만 행사 클로징이 약합니다.',tasks:['클로징 멘트 연습']}),
+ mkEval({id:'e6',emp:'m2',p:'p1',date:'9월 16일 14:40',by:'self',status:'confirmed',s:[8,8,7,9,8,8,8,7,7,7],prev:7.6,dur:'10분 11초',src:'김민지_0916.m4a',orig:'10MB',comp_:'2.4MB',pat:['m','m','p','m','m','m','m','m'],
+  summary:'안정적인 응대입니다.',tasks:['사용량 안내 구체화']})
+];
+const total=e=>+(e.items.reduce((a,b)=>a+b.score,0)/e.items.length).toFixed(1);
+const compRate=e=>{if(!e.comp.length)return 0;const v=e.comp.reduce((a,c)=>a+(c.st==='m'?1:c.st==='p'?.5:0),0);return Math.round(v/e.comp.length*100)};
+const byEmp=id=>EVALS.filter(e=>e.emp===id&&e.status!=='analyzing');
+
+/* ---------- 상태 ---------- */
+const S={role:null,tab:null,view:null,flow:null,open:{},edit:false,toast:null,matOpen:'p1'};
+const TABS={
+ manager:[['dash','홈','home'],['upload','평가 등록','up'],['review','검토 대기','inbox'],['team','사원','users']],
+ employee:[['mine','내 결과','chart'],['upload','업로드','up'],['study','교육자료','book']],
+ admin:[['adash','전체 현황','home'],['events','행사·교육자료','book'],['criteria','평가 항목','list']]
+};
+const ROLE_NAME={manager:'매니저',employee:'사원',admin:'관리자'};
+const ME={manager:{name:'정유진',sub:'강남점 매니저'},employee:{name:'박서준',sub:'강남점 사원',id:'m1'},admin:{name:'본사 교육팀',sub:'관리자'}};
+
+function setRole(r){S.role=r;S.tab=TABS[r][0][0];S.view=null;S.flow=null;S.edit=false;render()}
+function go(tab){S.tab=tab;S.view=null;S.edit=false;if(tab==='upload')newFlow();render();scrollTo(0,0)}
+function openEval(id){S.view={name:'eval',id};S.open={};S.edit=false;render();scrollTo(0,0)}
+function newFlow(){S.flow={step:S.role==='employee'?2:1,emp:S.role==='employee'?ME.employee.id:null,prod:null,file:null,phase:'pick',pct:0,stage:0}}
+
+/* ---------- 공통 조각 ---------- */
+const statusPill=st=>({draft:'<span class="pill p-warn">검토 대기</span>',confirmed:'<span class="pill p-good">확정</span>',analyzing:'<span class="pill p-info">분석 중</span>'}[st]);
+const byPill=b=>b==='self'?'<span class="pill p-mute">본인 업로드</span>':'<span class="pill p-mute">매니저 대리</span>';
+const compPill=st=>({m:'<span class="pill p-good">충족</span>',p:'<span class="pill p-warn">부분</span>',x:'<span class="pill p-bad">누락</span>',v:'<span class="pill p-bad">위반</span>'}[st]);
+const prodState=s=>({live:'<span class="pill p-good">진행 중</span>',ended:'<span class="pill p-mute">종료</span>',soon:'<span class="pill p-info">예정</span>'}[s]);
+function delta(a,b){const d=+(a-b).toFixed(1);if(!d)return '<span class="delta">±0.0</span>';return `<span class="delta ${d>0?'up':'down'}">${d>0?'▲':'▼'} ${Math.abs(d).toFixed(1)}</span>`}
+
+function hbar(rows,opt={}){ // rows:[{name,v,avg}]
+ const W=340,L=112,R=16,rowH=26,top=6,H=top+rows.length*rowH+22,sx=v=>L+(W-L-R)*v/10;
+ let g='';
+ for(let t=0;t<=10;t+=2)g+=`<line class="grid" x1="${sx(t)}" x2="${sx(t)}" y1="${top}" y2="${H-18}"/><text x="${sx(t)}" y="${H-4}" text-anchor="middle">${t}</text>`;
+ const low=opt.lowest!=null?opt.lowest:-1;
+ rows.forEach((r,i)=>{const y=top+i*rowH;
+  g+=`<text class="lbl" x="${L-8}" y="${y+16}" text-anchor="end">${esc(r.name)}</text>`;
+  g+=`<rect x="${L}" y="${y+6}" width="${Math.max(2,sx(r.v)-L)}" height="13" rx="4" fill="${i===low?'var(--warn)':'var(--accent)'}"/>`;
+  if(r.avg!=null)g+=`<circle cx="${sx(r.avg)}" cy="${y+12.5}" r="4.5" fill="var(--ink)" stroke="var(--surface)" stroke-width="2"/>`;
+ });
+ return `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(opt.label||'항목별 점수')}">${g}</svg>`;
+}
+function spark(vals){const W=70,H=22,mn=Math.min(...vals)-.5,mx=Math.max(...vals)+.5;const pts=vals.map((v,i)=>[i*(W-6)/(vals.length-1)+3,H-3-(v-mn)/(mx-mn)*(H-6)]);
+ return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.6"/><circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="2.6" fill="var(--accent)"/></svg>`}
+
+function evalRow(e,showEmp=true){
+ const emp=E(e.emp),pr=P(e.p);
+ return `<button class="row" data-act="open:${e.id}" ${e.status==='analyzing'?'disabled':''}>
+  <div class="avatar">${emp.name[0]}</div>
+  <div class="main"><div class="t">${showEmp?emp.name+' · ':''}${esc(pr.name)}</div>
+  <div class="s">${e.date} · ${e.dur}</div>
+  <div class="chips" style="margin-top:4px">${statusPill(e.status)}${byPill(e.by)}</div></div>
+  <div class="score">${e.status==='analyzing'?'<span class="hint">—</span>':total(e).toFixed(1)}</div></button>`;
+}
+
+/* ---------- 화면 ---------- */
+function vLogin(){
+ return `<div class="login">
+  <div class="brand"><div class="mark">SC</div><b>매장 판매 코칭</b></div>
+  <h1>판매 대화를 올리면<br>교육자료 기준으로 코칭해 드려요</h1>
+  <p>녹음이나 매장 촬영 영상을 올리면 AI가 행사 교육자료 준수 여부와 10개 항목 점수를 정리합니다. 매니저가 검토하고 확정하면 사원에게 공개됩니다.</p>
+  <div class="field"><span>이메일</span><input id="login-email" type="email" value="yujin.jung@example.com" autocomplete="off"></div>
+  <div class="field"><span>비밀번호</span><input id="login-pw" type="password" value="preview"></div>
+  <div class="hint">미리보기에서는 역할을 골라 들어갑니다.</div>
+  <div class="rolepick">
+   <button class="btn block" data-act="role:manager">매니저로 들어가기 (정유진 · 강남점)</button>
+   <button class="btn ghost block" data-act="role:employee">사원으로 들어가기 (박서준)</button>
+   <button class="btn ghost block" data-act="role:admin">관리자로 들어가기 (본사 교육팀)</button>
+  </div></div>`;
+}
+
+function vDash(){
+ const done=EVALS.filter(e=>e.status!=='analyzing');
+ const avgT=(done.reduce((a,e)=>a+total(e),0)/done.length).toFixed(1);
+ const avgC=Math.round(done.reduce((a,e)=>a+compRate(e),0)/done.length);
+ const pend=EVALS.filter(e=>e.status==='draft').length;
+ const lowest=TEAM_AVG.indexOf(Math.min(...TEAM_AVG));
+ const rows=CRIT.map((n,i)=>({name:n,v:TEAM_AVG[i]}));
+ return `<div class="stack">
+  <div class="tiles">
+   <div class="tile"><div class="k">이번 달 평가</div><div class="v">12<small> 건</small></div><div class="delta up">▲ 4 지난달 대비</div></div>
+   <div class="tile"><div class="k">팀 평균 점수</div><div class="v">${avgT}<small> / 10</small></div><div class="delta up">▲ 0.6</div></div>
+   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${avgC}<small> %</small></div><div class="delta up">▲ 9%p</div></div>
+   <div class="tile"><div class="k">검토 대기</div><div class="v">${pend}<small> 건</small></div><button class="btn ghost" style="padding:4px 10px;font-size:12.5px;margin-top:4px" data-act="tab:review">검토하기</button></div>
+  </div>
+  <div class="panel"><h3>항목별 팀 평균</h3>
+   ${hbar(rows,{lowest,label:'항목별 팀 평균 점수'})}
+   <div class="legend"><span><i class="sw"></i>팀 평균</span><span><i class="sw low"></i>코칭 우선 항목: ${CRIT[lowest]}</span></div>
+  </div>
+  <div class="panel"><h3>자주 놓치는 교육 내용 <span class="hint" style="font-weight:400">· 하이드라 수분크림 1+1</span></h3>
+   <div class="stack" style="gap:10px">
+    ${[['묶음 제안 콜멘트',58],['클로징 샘플 키트 멘트',46],['세라마이드 3종 설명',39]].map(([t,v])=>`<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${t}</span><span class="num">누락 ${v}%</span></div><div class="bar" style="margin-top:4px"><i style="width:${v}%;background:var(--bad)"></i></div></div>`).join('')}
+   </div></div>
+  <div class="sec-title">최근 평가</div>
+  <div class="list">${EVALS.slice(0,4).map(e=>evalRow(e)).join('')}</div>
+ </div>`;
+}
+
+function vReview(){
+ const d=EVALS.filter(e=>e.status==='draft'||e.status==='analyzing');
+ return `<div class="stack">
+  <div class="note">AI가 작성한 초안입니다. 점수와 코멘트를 확인·수정한 뒤 확정하면 사원에게 공개됩니다.</div>
+  <div class="list">${d.map(e=>evalRow(e)).join('')}</div></div>`;
+}
+
+function vTeam(){
+ return `<div class="stack"><div class="panel tbl"><table>
+  <thead><tr><th>사원</th><th class="r">최근 점수</th><th class="r">준수율</th><th>추이</th></tr></thead><tbody>
+  ${EMPS.map(m=>{const ev=byEmp(m.id);const last=ev[0];const hist=ev.slice().reverse().map(total);if(hist.length<2)hist.unshift(last?last.prev:6);
+   return `<tr><td><b>${m.name}</b></td><td class="r num">${last?total(last).toFixed(1):'—'}</td><td class="r num">${last?compRate(last)+'%':'—'}</td><td>${spark(hist)}</td></tr>`}).join('')}
+  </tbody></table></div>
+  <button class="btn ghost block">+ 사원 추가 / 로그인 초대 보내기</button>
+  <div class="sec-title">사원별 평가 기록</div>
+  <div class="list">${EVALS.filter(e=>e.status!=='analyzing').map(e=>evalRow(e)).join('')}</div></div>`;
+}
+
+function vEval(){
+ const e=EVALS.find(x=>x.id===S.view.id);const emp=E(e.emp),pr=P(e.p);
+ const t=total(e),cr=compRate(e);const isMgr=S.role!=='employee';const canEdit=isMgr&&e.status==='draft';
+ const counts={m:0,p:0,x:0,v:0};e.comp.forEach(c=>counts[c.st]++);
+ const low=e.items.reduce((a,b,i,arr)=>b.score<arr[a].score?i:a,0);
+ return `<div class="stack">
+  <div><div style="font-size:22px;font-weight:700">${emp.name}</div>
+   <div class="meta"><span>${esc(pr.name)}</span><span>${e.date}</span><span>대화 ${e.dur}</span></div>
+   <div class="chips" style="margin-top:6px">${statusPill(e.status)}${byPill(e.by)}</div></div>
+  ${canEdit?`<div class="banner warn">AI 초안입니다. 점수와 코멘트를 확인한 뒤 확정해 주세요. 확정 전에는 사원에게 보이지 않습니다.</div>`:''}
+  ${S.toast?`<div class="banner good">${S.toast}</div>`:''}
+  <div class="tiles">
+   <div class="tile"><div class="k">종합 점수</div><div class="v" id="total-v">${t.toFixed(1)}<small> / 10</small></div>${delta(t,e.prev)} <span class="hint">지난 평가 대비</span></div>
+   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${cr}<small> %</small></div><span class="hint">충족 ${counts.m} · 부분 ${counts.p} · 누락 ${counts.x}${counts.v?` · 위반 ${counts.v}`:''}</span></div>
+  </div>
+
+  <div class="panel"><h3>교육자료 준수 체크</h3>
+   <div class="hint" style="margin:-6px 0 8px">기준: ${pr.materials.map(esc).join(', ')}</div>
+   ${e.comp.map(c=>`<div class="check"><div>${c.type==='금지 표현'&&c.st==='m'?'<span class="pill p-good">위반 없음</span>':compPill(c.st)}</div>
+     <div class="req">${esc(c.req)}</div><div class="type">${c.type}</div>
+     <div class="ev"><span class="ts">${c.ev[0]}</span> ${esc(c.ev[1])}</div></div>`).join('')}
+  </div>
+
+  <div class="panel"><h3>항목별 점수</h3>
+   ${hbar(e.items.map(i=>({name:i.name,v:i.score,avg:i.avg})),{lowest:low})}
+   <div class="legend"><span><i class="sw"></i>이번 점수</span><span><i class="sw dot"></i>팀 평균</span><span><i class="sw low"></i>가장 낮은 항목</span></div>
+  </div>
+
+  <div class="panel"><h3>항목별 근거와 개선점</h3>
+   ${e.items.map((it,i)=>{const open=S.open[i];const above=it.score>it.avg;
+    return `<div class="item"><button class="item-h" data-act="item:${i}" aria-expanded="${!!open}">
+     <span class="n">${it.name}</span>${above?'<span class="pill p-good">평균 이상</span>':'<span class="pill p-mute">평균 이하</span>'}
+     ${S.edit?`<input class="scorebox" type="number" min="0" max="10" step="1" id="sc-${i}" value="${it.score}" data-score="${i}" aria-label="${it.name} 점수">`:`<span class="score" style="font-size:16px">${it.score}</span>`}
+     <span style="transform:rotate(${open?180:0}deg);display:inline-flex">${ic('chev',18)}</span></button>
+     ${open?`<div class="item-b"><p><span class="lab b">평가 근거</span>${esc(it.basis)}. ${esc(it.basis2)}.</p><p><span class="lab m">개선할 점</span>${esc(it.improve)}</p></div>`:''}</div>`}).join('')}
+  </div>
+
+  <div class="panel"><h3>다음 코칭 과제</h3><ol class="tasks">${e.tasks.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>
+  <div class="panel"><h3>총평</h3><p style="margin:0">${esc(e.summary)}</p></div>
+  <div class="panel"><h3>원본</h3><div class="meta"><span>${esc(e.src)}</span><span>원본 ${e.orig} → 전송 ${e.comp_}</span></div>
+   <button class="btn ghost" style="margin-top:10px">대화 녹취록 보기</button></div>
+  ${canEdit?`<div class="btns">${S.edit?`<button class="btn ghost" data-act="edit">수정 완료</button>`:`<button class="btn ghost" data-act="edit">점수·코멘트 수정</button>`}<button class="btn" data-act="confirm:${e.id}">확정하고 사원에게 공개</button></div>`:''}
+ </div>`;
+}
+
+function vUpload(){
+ const f=S.flow;const isEmp=S.role==='employee';
+ const step=(n,l)=>`<div class="step ${f.step===n?'on':f.step>n?'done':''}">${n}. ${l}</div>`;
+ let body='';
+ if(f.phase==='pick'){
+  if(f.step===1){
+   body=`<div class="sec-title">누구의 판매 대화인가요?</div><div class="grid2">${EMPS.map(m=>`<button class="choice" aria-pressed="${f.emp===m.id}" data-act="emp:${m.id}"><div class="avatar">${m.name[0]}</div><div class="main"><div class="t">${m.name}</div><div class="hint">${m.store}</div></div></button>`).join('')}</div>`;
+  } else if(f.step===2){
+   body=`${isEmp?`<div class="note">사원: <b>${ME.employee.name}</b> (본인)</div>`:`<div class="note">사원: <b>${E(f.emp).name}</b> <button class="btn ghost" style="padding:2px 10px;font-size:12.5px;margin-left:6px" data-act="step:1">변경</button></div>`}
+    <div class="sec-title">어떤 행사 품목을 판매했나요?</div>
+    <div class="stack" style="gap:8px">${PRODUCTS.filter(p=>p.state!=='soon').map(p=>`<button class="choice" aria-pressed="${f.prod===p.id}" data-act="prod:${p.id}"><div class="main"><div class="t">${esc(p.name)}</div><div class="hint">${p.period} · 교육자료 ${p.materials.length}개 · 체크 항목 ${p.checklist.length}개</div></div>${prodState(p.state)}</button>`).join('')}</div>`;
+  } else {
+   const pr=P(f.prod);
+   body=`<div class="note">사원: <b>${E(f.emp).name}</b>${isEmp?' (본인)':''} · 행사: <b>${esc(pr.name)}</b> <button class="btn ghost" style="padding:2px 10px;font-size:12.5px;margin-left:6px" data-act="step:2">변경</button></div>
+    <div class="drop">${ic('up',28)}<div><b>녹음 또는 동영상 파일을 올려 주세요</b><div class="hint">m4a · mp3 · wav · mp4 · mov 등 · 원본 2GB까지</div></div>
+     <label class="btn" for="file-in">파일 선택</label><input id="file-in" type="file" accept="audio/*,video/*" hidden>
+     <div class="hint">또는 샘플로 체험해 보기</div>
+     <div class="btns" style="width:100%"><button class="btn ghost" data-act="sample:video">매장 촬영 영상 812MB</button><button class="btn ghost" data-act="sample:audio">통화 녹음 68MB</button></div></div>
+    <div class="note">동영상은 음성만 뽑아내고, 큰 파일은 휴대폰 안에서 음성 인식용으로 압축한 뒤 보냅니다. 원본은 기기에 그대로 남습니다. 서버 한도는 파일당 50MB입니다.</div>
+    <div class="panel"><h3 style="font-size:14px">AI가 확인할 교육 내용 (${pr.checklist.length}개)</h3><div class="stack" style="gap:4px;font-size:13.5px">${pr.checklist.map(c=>`<div><span class="hint">${c[0]} · </span>${esc(c[1])}</div>`).join('')}</div></div>`;
+  }
+  const canNext=(f.step===1&&f.emp)||(f.step===2&&f.prod);
+  if(f.step<3)body+=`<button class="btn block" data-act="next" ${canNext?'':'disabled'}>다음</button>`;
+ } else {
+  body=vProcess();
+ }
+ return `<div class="stack"><div class="stepper">${step(1,'사원')}${step(2,'행사 품목')}${step(3,'파일 업로드')}</div>${body}</div>`;
+}
+
+const STAGES_PRE={video:['동영상에서 음성 추출','음성 인식용으로 압축'],audio:['음성 인식용으로 압축']};
+const STAGES_POST=['서버로 업로드','말소리를 텍스트로 변환','교육자료 기준으로 AI 평가'];
+function vProcess(){
+ const f=S.flow,file=f.file;const pre=STAGES_PRE[file.kind];const all=pre.concat(f.phase==='ready'?[]:STAGES_POST);
+ const stagesShown=f.phase==='ready'||f.phase==='compress'?pre:all;
+ const st=i=>i<f.stage?'done':i===f.stage&&f.phase!=='ready'&&f.phase!=='done'?'run':'wait';
+ let out=`<div class="panel"><div class="meta" style="margin-bottom:10px"><span>${ic('file',16)} ${esc(file.name)}</span><span>${file.kind==='video'?'동영상':'음성'} · 원본 ${fmt(file.size)}</span></div>
+  <div class="stages">${stagesShown.map((s,i)=>`<div class="stage ${f.phase==='ready'||f.phase==='done'?'done':st(i)}"><span class="ic">${(f.phase==='ready'||f.phase==='done'||i<f.stage)?'✓':''}</span><span>${s}</span><span class="num hint">${i===f.stage&&f.phase!=='ready'&&f.phase!=='done'?f.pct+'%':''}</span></div>`).join('')}</div>
+  ${f.phase==='compress'||f.phase==='send'?`<div class="bar" style="margin-top:12px"><i style="width:${f.pct}%"></i></div>`:''}</div>`;
+ if(f.phase!=='compress'){
+  out+=`<div class="panel"><div class="sizes"><div><div class="k">원본</div><div class="v">${fmt(file.size)}</div></div><div class="hint">→</div><div><div class="k">보낼 음성</div><div class="v" style="color:var(--good)">${fmt(file.out)}</div></div></div>
+   <div class="hint" style="text-align:center;margin-top:6px">${(100-file.out/file.size*100).toFixed(1)}% 줄었어요 · 모노 16kHz · 약 ${file.min}분</div></div>`;
+ }
+ if(f.phase==='ready'){
+  out+=`<div class="panel"><h3 style="font-size:14px">미리듣기</h3>${wave()}<div class="hint">목소리가 잘 들리는지 확인한 뒤 보내 주세요.</div></div>
+   <button class="btn block" data-act="send">업로드하고 AI 평가 시작</button>`;
+ }
+ if(f.phase==='done'){
+  out+=S.role==='employee'
+   ?`<div class="banner good">업로드를 마쳤어요. AI 초안이 담당 매니저(정유진)에게 전달되었습니다. 매니저가 확정하면 ‘내 결과’에서 볼 수 있어요.</div>
+     <div class="panel"><div class="stages">${['업로드','AI 분석','매니저 검토','결과 공개'].map((s,i)=>`<div class="stage ${i<2?'done':'wait'}"><span class="ic">${i<2?'✓':''}</span><span>${s}</span><span></span></div>`).join('')}</div></div>
+     <button class="btn ghost block" data-act="tab:mine">내 결과로 가기</button>`
+   :`<div class="banner good">AI 초안이 준비되었습니다. 검토하고 확정해 주세요.</div><button class="btn block" data-act="open:e1">초안 검토하기</button>`;
+ }
+ return out;
+}
+function wave(){let g='';for(let i=0;i<64;i++){const h=4+Math.abs(Math.sin(i*1.7)*Math.cos(i*.31))*26;g+=`<rect x="${i*5}" y="${20-h/2}" width="3" height="${h}" rx="1.5" fill="var(--accent)" opacity="${i<20?1:.35}"/>`}
+ return `<div style="display:flex;gap:10px;align-items:center;margin:4px 0 8px"><button class="btn" style="width:40px;height:40px;padding:0;border-radius:50%" aria-label="재생">▶</button><svg viewBox="0 0 320 40" width="100%" height="40" aria-hidden="true">${g}</svg></div>`}
+function fmt(b){const mb=b/1048576;return mb>=1024?(mb/1024).toFixed(2)+'GB':mb>=10?Math.round(mb)+'MB':mb.toFixed(1)+'MB'}
+
+function startFile(name,size,kind){
+ const min=kind==='video'?Math.max(1,Math.round(size/1048576/57)):Math.max(1,Math.round(size/1048576/1));
+ const out=min*60*32000/8*1.02;
+ S.flow.file={name,size,kind,min,out};
+ const f=S.flow;
+ if(size<=12*1048576&&kind==='audio'){f.file.out=Math.min(size,out);}
+ f.phase='compress';f.stage=0;f.pct=0;render();
+ const pre=STAGES_PRE[kind].length;const speed=matchMedia('(prefers-reduced-motion:reduce)').matches?34:9;
+ clearInterval(S.timer);
+ S.timer=setInterval(()=>{f.pct=Math.min(100,f.pct+speed);if(f.pct>=100){f.stage++;f.pct=0;if(f.stage>=pre){clearInterval(S.timer);f.phase='ready';}}render()},180);
+}
+function send(){
+ const f=S.flow;const pre=STAGES_PRE[f.file.kind].length;f.phase='send';f.stage=pre;f.pct=0;render();
+ clearInterval(S.timer);
+ S.timer=setInterval(()=>{f.pct=Math.min(100,f.pct+12);if(f.pct>=100){f.stage++;f.pct=0;if(f.stage>=pre+STAGES_POST.length){clearInterval(S.timer);f.phase='done';}}render()},160);
+}
+
+function vMine(){
+ const mine=byEmp(ME.employee.id);const conf=mine.filter(e=>e.status==='confirmed');const pending=mine.filter(e=>e.status==='draft');
+ const last=conf[0];
+ return `<div class="stack">
+  ${pending.length?`<div class="banner info">매니저 검토 중인 평가가 ${pending.length}건 있어요. 확정되면 여기에 표시됩니다.</div>`:''}
+  <div class="tiles"><div class="tile"><div class="k">최근 확정 점수</div><div class="v">${total(last).toFixed(1)}<small> / 10</small></div>${delta(total(last),last.prev)}</div>
+   <div class="tile"><div class="k">교육자료 준수율</div><div class="v">${compRate(last)}<small> %</small></div><span class="hint">${esc(P(last.p).name)}</span></div></div>
+  <div class="panel"><h3>이번 주 코칭 과제</h3><ol class="tasks">${last.tasks.concat(['“생각해 볼게요”에 대한 클로징 멘트 2가지 외우기']).map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>
+  <div class="sec-title">내 평가 기록</div>
+  <div class="list">${conf.map(e=>evalRow(e,false)).join('')}${pending.map(e=>`<div class="row"><div class="avatar">${E(e.emp).name[0]}</div><div class="main"><div class="t">${esc(P(e.p).name)}</div><div class="s">${e.date}</div><div class="chips" style="margin-top:4px"><span class="pill p-warn">매니저 검토 중</span>${byPill(e.by)}</div></div></div>`).join('')}</div>
+ </div>`;
+}
+
+function vStudy(){
+ return `<div class="stack">${PRODUCTS.filter(p=>p.state==='live').map(p=>`<div class="panel"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h3 style="margin:0">${esc(p.name)}</h3>${prodState(p.state)}</div>
+  <div class="hint">${p.period}</div>
+  <div class="chips" style="margin:10px 0">${p.materials.map(m=>`<span class="pill p-info">${ic('file',14)} ${esc(m)}</span>`).join('')}</div>
+  ${['필수 설명','필수 콜멘트','금지 표현'].map(t=>{const xs=p.checklist.filter(c=>c[0]===t);return xs.length?`<div style="margin-top:8px"><span class="lab ${t==='금지 표현'?'m':'b'}">${t}</span><ul style="margin:2px 0 0;padding-left:18px">${xs.map(c=>`<li>${esc(c[1])}</li>`).join('')}</ul></div>`:''}).join('')}
+ </div>`).join('')}</div>`;
+}
+
+function vAdash(){
+ const stores=[['강남점','정유진',4,7.3,74,5],['홍대점','한지우',6,6.8,69,2],['잠실점','윤서아',5,7.6,81,0],['판교점','오태민',3,6.2,58,4]];
+ return `<div class="stack">
+  <div class="tiles"><div class="tile"><div class="k">이번 달 전체 평가</div><div class="v">48<small> 건</small></div></div><div class="tile"><div class="k">전체 준수율</div><div class="v">71<small> %</small></div></div></div>
+  <div class="panel tbl"><h3>매장별 현황</h3><table><thead><tr><th>매장</th><th>매니저</th><th class="r">사원</th><th class="r">평균</th><th class="r">준수율</th><th class="r">검토 대기</th></tr></thead><tbody>
+  ${stores.map(s=>`<tr><td><b>${s[0]}</b></td><td>${s[1]}</td><td class="r num">${s[2]}</td><td class="r num">${s[3].toFixed(1)}</td><td class="r num">${s[4]}%</td><td class="r">${s[5]?`<span class="pill p-warn">${s[5]}</span>`:'<span class="hint">0</span>'}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="panel"><h3>행사별 교육 준수율</h3>${hbar([{name:'수분크림 1+1',v:6.4},{name:'비타C 기획세트',v:7.8},{name:'선크림 특가',v:8.3}],{label:'행사별 준수율(10=100%)'})}<div class="hint">막대 10 = 준수율 100%</div></div>
+ </div>`;
+}
+
+function vEvents(){
+ return `<div class="stack">
+  <button class="btn block">+ 행사 품목 등록</button>
+  ${PRODUCTS.map(p=>{const open=S.matOpen===p.id;return `<div class="panel">
+   <button class="item-h" style="padding:0" data-act="mat:${p.id}" aria-expanded="${open}"><span class="n">${esc(p.name)}</span>${prodState(p.state)}<span style="transform:rotate(${open?180:0}deg);display:inline-flex">${ic('chev',18)}</span></button>
+   <div class="hint">${p.period} · 교육자료 ${p.materials.length}개</div>
+   ${open?`<div class="stack" style="gap:10px;margin-top:12px">
+    <div class="chips">${p.materials.map(m=>`<span class="pill p-info">${ic('file',14)} ${esc(m)}</span>`).join('')||'<span class="hint">아직 교육자료가 없어요</span>'}</div>
+    <div class="drop" style="padding:14px"><b>교육자료 올리기</b><div class="hint">PDF · 텍스트 · 이미지 · 제품 설명서, 콜멘트 대본</div><button class="btn ghost" data-act="extract:${p.id}">샘플 자료로 체크리스트 추출</button></div>
+    ${p.checklist.length?`<div><div style="display:flex;justify-content:space-between;align-items:center"><b>AI가 뽑은 필수 체크리스트</b><span class="hint">수정 가능</span></div>
+     ${p.checklist.map((c,i)=>`<div class="check"><span class="pill ${c[0]==='금지 표현'?'p-bad':c[0]==='필수 콜멘트'?'p-info':'p-mute'}">${c[0]}</span><div class="req" style="font-weight:500">${esc(c[1])}</div></div>`).join('')}
+     <button class="btn ghost block" style="margin-top:8px">+ 항목 직접 추가</button></div>`:''}
+   </div>`:''}</div>`}).join('')}</div>`;
+}
+
+function vCriteria(){
+ return `<div class="stack"><div class="note">모든 평가에 공통으로 쓰는 항목입니다. 가중치를 바꾸면 종합 점수 계산에 반영됩니다.</div>
+  <div class="list">${CRIT.map((c,i)=>`<div class="row"><span class="num hint" style="width:20px">${i+1}</span><div class="main"><div class="t">${c}</div><div class="s">${esc(BASIS[c][0]).slice(0,34)}… 같은 행동을 봅니다</div></div><span class="pill p-mute num">가중치 ${[1.2,1,1.2,0.8,0.8,1,1.2,1,0.6,1.2][i]}</span></div>`).join('')}</div>
+  <button class="btn ghost block">+ 평가 항목 추가</button></div>`;
+}
+
+/* ---------- 렌더 ---------- */
+const TITLES={dash:'팀 현황',upload:'판매 대화 올리기',review:'검토 대기',team:'사원',mine:'내 결과',study:'교육자료',adash:'전체 현황',events:'행사 품목 · 교육자료',criteria:'평가 항목'};
+function render(){
+ document.getElementById('roles').innerHTML=['manager','employee','admin'].map(r=>`<button data-act="role:${r}" aria-pressed="${S.role===r}">${ROLE_NAME[r]}</button>`).join('');
+ const app=document.getElementById('app'),tabs=document.getElementById('tabs');
+ if(!S.role){app.innerHTML=vLogin();tabs.hidden=true;return}
+ tabs.hidden=false;
+ const pend=EVALS.filter(e=>e.status==='draft').length;
+ document.getElementById('tabs-in').innerHTML=TABS[S.role].map(([k,l,i])=>`<button data-act="tab:${k}" aria-current="${S.tab===k&&!S.view?'page':'false'}">${ic(i)}${l}${k==='review'&&pend?`<span class="dot">${pend}</span>`:''}</button>`).join('');
+ let title=TITLES[S.tab],body;
+ if(S.view){title='평가 결과';body=vEval()}
+ else body={dash:vDash,upload:vUpload,review:vReview,team:vTeam,mine:vMine,study:vStudy,adash:vAdash,events:vEvents,criteria:vCriteria}[S.tab]();
+ const me=ME[S.role];
+ app.innerHTML=`<div class="topbar">${S.view?`<button class="back" data-act="back" aria-label="뒤로">${ic('back',20)}</button>`:''}<h1>${title}</h1><div class="who"><b>${me.name}</b><br>${me.sub}</div></div>${body}`;
+}
+
+document.addEventListener('click',ev=>{
+ const b=ev.target.closest('[data-act]');if(!b||b.disabled)return;
+ if(b.matches('input'))return;
+ const [a,v]=b.dataset.act.split(':');
+ if(a==='role')return setRole(v);
+ if(a==='tab')return go(v);
+ if(a==='open'){S.toast=null;return openEval(v)}
+ if(a==='back'){S.view=null;S.toast=null;S.edit=false;return render()}
+ if(a==='item'){if(ev.target.matches('input'))return;S.open[v]=!S.open[v];return render()}
+ if(a==='edit'){S.edit=!S.edit;if(S.edit)CRIT.forEach((_,i)=>S.open[i]=S.open[i]);return render()}
+ if(a==='confirm'){const e=EVALS.find(x=>x.id===v);e.status='confirmed';S.edit=false;S.toast=`확정했어요. ${E(e.emp).name}님에게 결과가 공개되었습니다.`;return render()}
+ if(a==='emp'){S.flow.emp=v;return render()}
+ if(a==='prod'){S.flow.prod=v;return render()}
+ if(a==='next'){S.flow.step++;return render()}
+ if(a==='step'){S.flow.step=+v;return render()}
+ if(a==='sample')return v==='video'?startFile('매장촬영_0924.mp4',812*1048576,'video'):startFile('통화녹음_0924.m4a',68*1048576,'audio');
+ if(a==='send')return send();
+ if(a==='mat'){S.matOpen=S.matOpen===v?null:v;return render()}
+ if(a==='extract'){const p=P(v);if(!p.checklist.length){p.materials.push('레티놀 나이트크림 교육자료.pdf');p.checklist=[['필수 설명','순수 레티놀 0.1% 함량과 저녁 사용 안내'],['필수 설명','처음 2주는 격일 사용 권장'],['필수 콜멘트','“런칭 기념으로 앰플 미니를 드려요”'],['금지 표현','“주름이 없어진다” 등 치료 효과 표현']]}return render()}
+});
+document.addEventListener('input',ev=>{
+ const i=ev.target.dataset.score;if(i==null)return;
+ const e=EVALS.find(x=>x.id===S.view.id);const v=Math.max(0,Math.min(10,+ev.target.value||0));e.items[i].score=v;
+ const el=document.getElementById('total-v');if(el)el.innerHTML=`${total(e).toFixed(1)}<small> / 10</small>`;
+});
+document.addEventListener('change',ev=>{
+ if(ev.target.id!=='file-in')return;const f=ev.target.files[0];if(!f)return;
+ startFile(f.name,f.size,f.type.startsWith('video')||/\.(mp4|mov|webm|mkv|avi)$/i.test(f.name)?'video':'audio');
+});
+render();
+</script>
