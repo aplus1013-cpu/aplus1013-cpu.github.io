@@ -17,7 +17,7 @@ export function page(name, def) { pages[name] = def; }
 export const TABS = {
   employee: [["practice", "연습하기", "up"], ["history", "연습 기록", "chart"], ["results", "받은 평가", "inbox"], ["best", "우수 사례", "star"], ["study", "교육자료", "book"]],
   manager: [["dash", "홈", "home"], ["review", "제출됨", "inbox"], ["upload", "대리 업로드", "up"], ["best", "우수 사례", "star"], ["team", "사원", "users"]],
-  admin: [["adash", "전체 현황", "home"], ["people", "계정", "users"], ["events", "행사·교육자료", "book"], ["criteria", "평가 항목", "list"], ["best", "우수 사례", "star"]],
+  admin: [["adash", "전체 현황", "home"], ["batch", "일괄 평가", "up"], ["people", "계정", "users"], ["events", "행사·교육자료", "book"], ["criteria", "평가 항목", "list"], ["best", "우수 사례", "star"]],
 };
 
 export function route() {
@@ -61,6 +61,7 @@ export async function render() {
   current = { name, arg, def };
 
   const tabs = S.me && !S.me.must_change_pw ? TABS[role] : null;
+  document.body.classList.toggle("wide", role === "admin" || role === "manager");
   tabsEl.hidden = !tabs;
   if (tabs) {
     document.getElementById("tabs-in").innerHTML = tabs.map(([k, l, i]) =>

@@ -45,7 +45,7 @@ Deno.serve(handler(async (req) => {
   const me = await caller(req, admin);
   if (!me || me.role === "employee") throw new HttpError(403, "권한이 없어요");
 
-  if (body.action === "create_users") return json({ results: await createUsers(admin, me, body.role, body.rows ?? []) });
+  if (body.action === "create_users") return json({ results: await createUsers(admin, me, body.role, body.rows ?? [], !!body.name_only) });
 
   if (body.action === "reset_password" || body.action === "set_active") {
     const { data: target } = await admin.from("profiles").select("id, role, store_id, name").eq("id", body.user_id).single();
@@ -69,7 +69,9 @@ Deno.serve(handler(async (req) => {
 }));
 
 // deno-lint-ignore no-explicit-any
-async function createUsers(admin: any, me: Profile, role: string, rows: Row[]) {
+// nameOnly: 사원을 이름(과 매장)만으로 등록. 로그인 계정은 나중에 사번을 정할 때 만듦
+async function createUsers(admin: any, me: Profile, role: string, rows: Row[], nameOnly = false) {
+  if (nameOnly && role !== "employee") throw new HttpError(400, "이름만 등록은 사원만 할 수 있어요");
   if (!["employee", "manager", "admin"].includes(role)) throw new HttpError(400, "역할이 올바르지 않아요");
   if (role !== "employee" && me.role !== "admin") throw new HttpError(403, "매니저·관리자 등록은 관리자만 할 수 있어요");
   if (rows.length > 500) throw new HttpError(400, "한 번에 500명까지 올릴 수 있어요");
@@ -88,15 +90,21 @@ async function createUsers(admin: any, me: Profile, role: string, rows: Row[]) {
       if (!name) throw new Error("이름이 비어 있어요");
       let email: string, emp_no: string | null = null, store_id: string | null = null, manager_id: string | null = null;
       if (role === "employee") {
-        emp_no = String(r.emp_no ?? "").trim();
-        if (!EMP_NO.test(emp_no)) throw new Error("사번은 숫자 6~10자리여야 해요");
-        if (seen.has(emp_no)) throw new Error("파일 안에서 사번이 겹쳐요");
-        seen.add(emp_no);
-        email = `${emp_no}@${STAFF_DOMAIN}`;
+        if (nameOnly) {
+          emp_no = null;
+          email = `m-${crypto.randomUUID()}@${STAFF_DOMAIN}`;
+        } else {
+          emp_no = String(r.emp_no ?? "").trim();
+          if (!EMP_NO.test(emp_no)) throw new Error("사번은 숫자 6~10자리여야 해요");
+          if (seen.has(emp_no)) throw new Error("파일 안에서 사번이 겹쳐요");
+          seen.add(emp_no);
+          email = `${emp_no}@${STAFF_DOMAIN}`;
+        }
         if (me.role === "manager") { store_id = me.store_id; manager_id = me.id; }
         else {
-          store_id = storeByName.get(String(r.store ?? "").trim()) ?? null;
-          if (!store_id) throw new Error(`‘${r.store ?? ""}’은 등록된 매장이 아니에요`);
+          const sname = String(r.store ?? "").trim();
+          store_id = sname ? storeByName.get(sname) ?? null : null;
+          if (!store_id && (sname || !nameOnly)) throw new Error(`‘${sname}’은 등록된 매장이 아니에요`);
           const mEmail = String(r.manager_email ?? "").trim().toLowerCase();
           // deno-lint-ignore no-explicit-any
           const m = mEmail ? managers?.find((x: any) => x.email === mEmail) : managers?.find((x: any) => x.store_id === store_id);
@@ -104,7 +112,7 @@ async function createUsers(admin: any, me: Profile, role: string, rows: Row[]) {
           if (m && m.store_id !== store_id) throw new Error("매니저와 매장이 맞지 않아요");
           manager_id = m?.id ?? null;
         }
-        out.emp_no = emp_no;
+        if (emp_no) out.emp_no = emp_no;
       } else {
         email = String(r.email ?? "").trim().toLowerCase();
         if (!EMAIL.test(email)) throw new Error("이메일 형식이 올바르지 않아요");
@@ -124,7 +132,7 @@ async function createUsers(admin: any, me: Profile, role: string, rows: Row[]) {
       }
       const pwIn = String(r.password ?? "").trim();
       if (pwIn && pwIn.length < 8) throw new Error("초기 비밀번호는 8자 이상이어야 해요");
-      const password = pwIn || genPw();
+      const password = nameOnly ? genPw() + genPw() : pwIn || genPw();
 
       const { data: u, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name } });
       if (error || !u?.user) {
@@ -135,7 +143,7 @@ async function createUsers(admin: any, me: Profile, role: string, rows: Row[]) {
       });
       if (pErr) { await admin.auth.admin.deleteUser(u.user.id); throw new Error("프로필을 저장하지 못했어요"); }
       if (role === "manager") managers?.push({ id: u.user.id, email, store_id });
-      results.push({ ...out, ok: true, password, store: role === "employee" && me.role === "manager" ? null : r.store ?? null });
+      results.push({ ...out, ok: true, id: u.user.id, password: nameOnly ? null : password, store: role === "employee" && me.role === "manager" ? null : r.store ?? null });
     } catch (e) {
       results.push({ ...out, ok: false, error: e instanceof Error ? e.message : String(e) });
     }

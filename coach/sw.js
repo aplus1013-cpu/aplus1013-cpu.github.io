@@ -1,7 +1,7 @@
 // 앱 화면 파일만 캐시해 빠르게 열고, 데이터(API)는 항상 서버에서 받음
-const CACHE = "coach-v1";
+const CACHE = "coach-v2";
 const SHELL = ["./", "index.html", "app/styles.css", "app/main.js", "app/core.js", "app/api.js", "app/ui.js", "app/config.js", "app/media.js",
-  "app/pages/upload.js", "app/pages/evaluation.js", "app/pages/employee.js", "app/pages/manager.js", "app/pages/admin.js", "app/pages/best.js", "app/pages/people-bulk.js",
+  "app/pages/upload.js", "app/pages/evaluation.js", "app/pages/employee.js", "app/pages/manager.js", "app/pages/admin.js", "app/pages/best.js", "app/pages/people-bulk.js", "app/pages/batch.js",
   "vendor/supabase.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });

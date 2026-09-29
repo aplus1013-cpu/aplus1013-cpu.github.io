@@ -281,6 +281,36 @@ try {
     await login(H, "20240301", creds["20240301"]); await changePw(H, "Haeun1234!");
     await act(H, "nav:study").click(); await see(H, "72시간 보습"); await see(H, "10월 행사 콜멘트");
   });
+  await step("관리자: 노트북 일괄 평가 — 파일 이름으로 사원·행사 인식", async () => {
+    await A.setViewportSize({ width: 1280, height: 900 });
+    await A.goto(`${emu.url}/coach/#/batch`); await see(A, "녹음 폴더 고르기");
+    const buf = readFileSync(smallWav);
+    const f = (name) => ({ name, mimeType: "audio/wav", buffer: buf });
+    // 4번째는 사원이 이미 올린 파일(같은 이름·크기), 3번째는 맥 방식(NFD) 한글 이름
+    await A.setInputFiles("#batch-files", [f("김민지_하이드라 수분크림 1+1_0915.wav"), f("박서준 연습.wav"), f("최수아_0916.wav".normalize("NFD")), f(basename(smallWav))]);
+    await see(A, "파일 4개를 불러왔어요"); await see(A, "명단에 없는 사원 추가"); await see(A, "전에 올린 파일");
+    if ((await A.inputValue("#batch-names")).trim() !== "최수아") throw new Error("이름 후보가 다름: " + await A.inputValue("#batch-names"));
+    await A.selectOption("#batch-defprod", { label: "하이드라 수분크림 1+1" });
+    await see(A, "선택한 2개 평가 시작");
+    await act(A, "addnames").click(); await see(A, "1명 등록했어요");
+    await see(A, "선택한 3개 평가 시작");
+    await shot(A, "13-batch-check");
+  });
+  await step("관리자: 일괄 평가 실행 → 점수·결과 엑셀", async () => {
+    await act(A, "start").click();
+    await A.waitForFunction(() => document.querySelectorAll('[data-act^="open:"]').length === 3, null, { timeout: 90000 });
+    await see(A, "결과 엑셀로 받기");
+    const [dl] = await Promise.all([A.waitForEvent("download"), act(A, "export").click()]);
+    const wb = XLSX.read(readFileSync(await dl.path()));
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+    if (aoa.length !== 4 || aoa[0][3] !== "AI 점수" || !aoa.some((r) => r[1] === "최수아")) throw new Error("결과 엑셀 내용: " + JSON.stringify(aoa).slice(0, 300));
+    await shot(A, "14-batch-done");
+    await A.locator('[data-act^="open:"]').first().click(); await see(A, "매니저 평가 입력");
+    await act(A, "nav:people").click(); await see(A, "이름만 등록");
+    const row = A.locator(".row").filter({ hasText: "최수아" });
+    if (await row.locator('[data-act^="reset:"]').count()) throw new Error("이름만 등록한 사원에 비밀번호 초기화가 보임");
+    await A.setViewportSize({ width: 390, height: 844 });
+  });
   await step("관리자: 전체 현황 수치·게시물 내리기", async () => {
     await A.goto(`${emu.url}/coach/#/adash`); await see(A, "강남점"); await see(A, "홍대점");
     await act(A, "nav:best").click(); await A.locator('[data-act^="hide:"]').first().click(); await see(A, "게시판에서 내렸어요");

@@ -197,3 +197,16 @@ audio{width:100%}
 .st .hint{grid-column:2}
 .cmp input.scorebox{justify-self:end}
 .menu-list .row{cursor:pointer}
+
+/* 노트북(넓은 화면): 관리자·매니저는 넓게 */
+@media (min-width:900px){
+  body.wide .shell{max-width:1100px}
+  body.wide .tabs-in{max-width:1100px}
+  body.wide .tiles{grid-template-columns:repeat(4,1fr)}
+}
+.drop.over{border-color:var(--accent);background:var(--accent-soft,rgba(46,84,214,.08))}
+.batch-tbl td{vertical-align:top}
+.batch-tbl select{max-width:220px;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);display:block;margin-bottom:4px}
+.batch-tbl .fname{font-weight:500;word-break:break-all}
+.grid-names{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:10px}
+@media (max-width:600px){.grid-names{grid-template-columns:1fr}}

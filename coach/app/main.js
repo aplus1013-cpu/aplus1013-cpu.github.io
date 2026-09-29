@@ -8,6 +8,7 @@ import "./pages/employee.js";
 import "./pages/manager.js";
 import "./pages/admin.js";
 import "./pages/best.js";
+import "./pages/batch.js";
 
 // ---- 로그인 상태 불러오기 ----
 export async function loadMe() {

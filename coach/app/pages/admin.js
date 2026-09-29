@@ -47,7 +47,7 @@ page("people", {
       <div class="sec-title">매니저·관리자 ${staff.length}명</div>
       <div class="list">${staff.map((p) => row(p, `${role[p.role]}${p.store_id ? ` · ${storeName(p.store_id)}` : ""} · ${p.email ?? ""}`)).join("")}</div>
       <div class="sec-title">사원 ${emps.length}명</div>
-      ${emps.length ? `<div class="list">${emps.map((p) => row(p, `사번 ${p.emp_no} · ${storeName(p.store_id)}`)).join("")}</div>` : empty("아직 사원이 없어요")}
+      ${emps.length ? `<div class="list">${emps.map((p) => row(p, `${p.emp_no ? `사번 ${p.emp_no}` : "이름만 등록"}${p.store_id ? ` · ${storeName(p.store_id)}` : ""}`)).join("")}</div>` : empty("아직 사원이 없어요")}
     </div>`;
   },
   actions: {
@@ -80,8 +80,8 @@ page("people", {
 function row(p, sub) {
   const self = p.id === S.me.id;
   return `<div class="row"><div class="avatar">${esc(p.name[0])}</div><div class="main"><div class="t">${esc(p.name)} ${p.active ? "" : '<span class="pill p-mute">사용 중지</span>'}</div>
-    <div class="s">${esc(sub)}${p.must_change_pw ? " · 첫 로그인 전" : ""}</div></div>
-    ${self ? '<span class="hint">나</span>' : `<div class="row-actions"><button class="btn ghost sm" data-act="reset:${p.id}">비밀번호 초기화</button>
+    <div class="s">${esc(sub)}${p.must_change_pw && (p.role !== "employee" || p.emp_no) ? " · 첫 로그인 전" : ""}</div></div>
+    ${self ? '<span class="hint">나</span>' : `<div class="row-actions">${p.role === "employee" && !p.emp_no ? "" : `<button class="btn ghost sm" data-act="reset:${p.id}">비밀번호 초기화</button>`}
     <button class="btn ghost sm" data-act="active:${p.id}:${p.active ? 0 : 1}">${p.active ? "사용 중지" : "다시 사용"}</button></div>`}</div>`;
 }
 

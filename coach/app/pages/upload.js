@@ -29,7 +29,7 @@ async function view(mode) {
   if (F.phase === "pick" && F.step === 1) {
     body = `<div class="note">매니저가 올린 대화는 연습 단계 없이 바로 매니저 평가로 들어갑니다.</div>
       <div class="sec-title">누구의 판매 대화인가요?</div>
-      ${employees.length ? `<div class="grid2">${employees.map((m) => `<button class="choice" aria-pressed="${F.emp === m.id}" data-act="emp:${m.id}"><div class="avatar">${esc(m.name[0])}</div><div class="main"><div class="t">${esc(m.name)}</div><div class="hint">사번 ${esc(m.emp_no)}${S.me.role === "admin" ? ` · ${esc(storeName(m.store_id))}` : ""}</div></div></button>`).join("")}</div>`
+      ${employees.length ? `<div class="grid2">${employees.map((m) => `<button class="choice" aria-pressed="${F.emp === m.id}" data-act="emp:${m.id}"><div class="avatar">${esc(m.name[0])}</div><div class="main"><div class="t">${esc(m.name)}</div><div class="hint">${m.emp_no ? `사번 ${esc(m.emp_no)}` : "이름만 등록"}${S.me.role === "admin" ? ` · ${esc(storeName(m.store_id))}` : ""}</div></div></button>`).join("")}</div>`
         : '<div class="empty">등록된 사원이 없어요. ‘사원’ 탭에서 먼저 등록해 주세요.</div>'}
       <button class="btn block" data-act="next" ${F.emp ? "" : "disabled"}>다음</button>`;
   } else if (F.phase === "pick" && F.step === 2) {

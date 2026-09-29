@@ -91,7 +91,7 @@ async function readFile(file, role) {
   return validate(rows, role);
 }
 
-async function download(name, aoa) {
+export async function download(name, aoa) {
   const X = await XLSX();
   const wb = X.utils.book_new();
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), "명단");

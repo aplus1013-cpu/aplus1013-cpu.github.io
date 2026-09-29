@@ -93,8 +93,8 @@ page("team", {
       ${bulkPanel("employee")}
       <div class="sec-title">우리 매장 사원 ${emps.length}명</div>
       ${emps.length ? `<div class="list">${emps.map((m) => `<div class="row"><div class="avatar">${esc(m.name[0])}</div><div class="main"><div class="t">${esc(m.name)} ${m.active ? "" : '<span class="pill p-mute">사용 중지</span>'}</div>
-        <div class="s">사번 ${esc(m.emp_no)}${m.must_change_pw ? " · 첫 로그인 전" : ""}</div></div>
-        <div class="row-actions"><button class="btn ghost sm" data-act="reset:${m.id}">비밀번호 초기화</button>
+        <div class="s">${m.emp_no ? `사번 ${esc(m.emp_no)}${m.must_change_pw ? " · 첫 로그인 전" : ""}` : "이름만 등록(로그인 계정 없음)"}</div></div>
+        <div class="row-actions">${m.emp_no ? `<button class="btn ghost sm" data-act="reset:${m.id}">비밀번호 초기화</button>` : ""}
         <button class="btn ghost sm" data-act="active:${m.id}:${m.active ? 0 : 1}">${m.active ? "사용 중지" : "다시 사용"}</button></div></div>`).join("")}</div>` : empty("아직 등록된 사원이 없어요")}
     </div>`;
   },
