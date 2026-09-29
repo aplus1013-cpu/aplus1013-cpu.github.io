@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>매장 판매 코칭</title>
+<meta name="description" content="판매 대화를 녹음해 올리면 AI가 교육자료 기준으로 코칭하고, 매니저가 평가하는 매장 판매 코칭 앱">
+<meta name="theme-color" content="#2E54D6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="판매코칭">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="app/styles.css">
+</head>
+<body>
+<div class="shell" id="app"><div class="boot">불러오는 중…</div></div>
+<nav class="tabs" id="tabs" hidden><div class="tabs-in" id="tabs-in"></div></nav>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<noscript>이 앱은 자바스크립트가 켜져 있어야 동작해요.</noscript>
+<script type="module" src="app/main.js"></script>
+</body>
+</html>
